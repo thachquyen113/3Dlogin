@@ -1,0 +1,6 @@
+{
+  "name": "Sylva Sanctuary — 3D Botanical Login",
+  "description": "Immersive 3D animated login experience built with React Three Fiber, featuring a living botanical garden with animated flowers and wildlife, a rotating 3D particle vortex behind a glassmorphic card, and smooth sunshine-to-starry-night theme transitions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
