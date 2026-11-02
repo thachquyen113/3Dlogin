@@ -13,6 +13,7 @@ interface CelestialSkyProps {
   themeBurstId: number;
   lastTriggeredTheme: ThemeMode | null;
   skySpeed: number;
+  isIndoor?: boolean;
 }
 
 // Pre-allocated scratch colors & vectors outside useFrame (zero GC)
@@ -43,6 +44,7 @@ export function CelestialSky({
   themeBurstId,
   lastTriggeredTheme,
   skySpeed,
+  isIndoor = false,
 }: CelestialSkyProps) {
   const { gl } = useThree();
   const maxAniso = useMemo(() => gl.capabilities.getMaxAnisotropy(), [gl]);
@@ -132,30 +134,30 @@ export function CelestialSky({
     } else if (lastTriggeredTheme === 'dark') {
       // Launch immediate visible comets across the starry night sky
       const c0 = cometsData.current[0];
-      c0.startX = 10.8;
-      c0.startY = 6.3;
-      c0.endX = -11.8;
-      c0.endY = 2.9;
-      c0.progress = 0.04;
+      c0.startX = isIndoor ? 3.2 : 10.8;
+      c0.startY = isIndoor ? 4.6 : 6.3;
+      c0.endX = isIndoor ? -7.8 : -11.8;
+      c0.endY = isIndoor ? 2.4 : 2.9;
+      c0.progress = 0.06;
       c0.active = true;
 
       const c1 = cometsData.current[1];
-      c1.startX = 4.5;
-      c1.startY = 7.4;
-      c1.endX = -12.2;
-      c1.endY = 3.8;
+      c1.startX = isIndoor ? -6.8 : 4.5;
+      c1.startY = isIndoor ? 4.8 : 7.4;
+      c1.endX = isIndoor ? 2.8 : -12.2;
+      c1.endY = isIndoor ? 2.6 : 3.8;
       c1.progress = -0.18;
       c1.active = true;
 
       const c2 = cometsData.current[2];
-      c2.startX = 11.4;
-      c2.startY = 4.7;
-      c2.endX = -8.5;
-      c2.endY = 1.8;
+      c2.startX = isIndoor ? 4.4 : 11.4;
+      c2.startY = isIndoor ? 3.8 : 4.7;
+      c2.endX = isIndoor ? -7.2 : -8.5;
+      c2.endY = isIndoor ? 2.0 : 1.8;
       c2.progress = -0.42;
       c2.active = true;
     }
-  }, [themeBurstId, lastTriggeredTheme]);
+  }, [themeBurstId, lastTriggeredTheme, isIndoor]);
 
   // 1. Atmospheric Sky Dome Shader
   const skyUniforms = useMemo(
@@ -317,6 +319,15 @@ export function CelestialSky({
         color: shinePalette[i % shinePalette.length],
       });
     }
+
+    // Dedicated star-shine beacons flanking the Moon through the 3D office window
+    items.push(
+      { x: -4.15, y: 4.1, z: -14.8, baseScale: 0.92, speed: 1.8, phase: 0.4, color: '#ffffff' },
+      { x: -1.05, y: 3.95, z: -15.1, baseScale: 0.86, speed: 2.2, phase: 1.9, color: '#bae6fd' },
+      { x: -3.85, y: 2.35, z: -14.5, baseScale: 0.78, speed: 1.6, phase: 3.1, color: '#fef08a' },
+      { x: -1.25, y: 2.55, z: -15.3, baseScale: 0.82, speed: 2.5, phase: 4.6, color: '#a5f3fc' },
+    );
+
     return items;
   }, []);
 
@@ -378,7 +389,19 @@ export function CelestialSky({
 
     // 2. Update Sun & Sunbeams (Light Scene)
     if (sunGroupRef.current) {
-      sunGroupRef.current.position.y = THREE.MathUtils.lerp(-3.5, 6.85, dayFactor);
+      const targetSunX = isIndoor ? -2.55 : -6.4;
+      const targetSunTopY = isIndoor ? 3.65 : 6.85;
+      sunGroupRef.current.position.x = THREE.MathUtils.damp(
+        sunGroupRef.current.position.x,
+        targetSunX,
+        3.2,
+        dt,
+      );
+      sunGroupRef.current.position.y = THREE.MathUtils.lerp(
+        isIndoor ? 0.2 : -3.5,
+        targetSunTopY,
+        dayFactor,
+      );
       sunGroupRef.current.visible = dayFactor > 0.02;
       const sScale = Math.max(0.01, dayFactor * (1 + sunBurstStrength.current * 0.28));
       sunGroupRef.current.scale.setScalar(sScale);
@@ -411,12 +434,13 @@ export function CelestialSky({
     }
     if (dayFactor > 0.02) {
       const span = 36; // Wraps from -18 to +18
+      const cloudYOffset = isIndoor ? -2.1 : 0;
       cloudSpecs.forEach((c, idx) => {
         const grp = cloudGroupRefs.current[idx];
         if (!grp) return;
         const rawX = c.baseX + t * c.speed * pace;
         const wrappedX = ((((rawX + 18) % span) + span) % span) - 18;
-        const bobY = c.y + Math.sin(t * 0.55 + c.bobPhase) * 0.14;
+        const bobY = c.y + cloudYOffset + Math.sin(t * 0.55 + c.bobPhase) * 0.14;
         grp.position.set(wrappedX, bobY + (1 - dayFactor) * 1.4, c.z);
         grp.scale.setScalar(c.scale * Math.max(0.01, dayFactor));
       });
@@ -429,8 +453,10 @@ export function CelestialSky({
     if (dayFactor > 0.03) {
       // V-formation leader path sweeping left -> right across high sky
       const flockSpan = 30;
+      const birdYOffset = isIndoor ? -1.85 : 0;
       const leaderX = ((((t * 1.35 * pace + 15) % flockSpan) + flockSpan) % flockSpan) - 15;
-      const leaderY = 4.95 + Math.sin(t * 0.75) * 0.35 + (1 - dayFactor) * 2.5;
+      const leaderY =
+        4.95 + birdYOffset + Math.sin(t * 0.75) * 0.35 + (1 - dayFactor) * 2.5;
       const leaderZ = -9.4 + Math.cos(t * 0.45) * 0.85;
 
       skyBirdSpecs.forEach((b, idx) => {
@@ -461,6 +487,7 @@ export function CelestialSky({
           const bz = b.cz + Math.sin(st) * b.rz;
           const by =
             b.cy +
+            birdYOffset +
             Math.sin(st * 2.0) * 0.28 +
             (1 - dayFactor) * 2.5;
 
@@ -480,10 +507,25 @@ export function CelestialSky({
     }
 
     // 5. Update 3D Moon, Starfield & Radiant Star Shine (Night Scene)
+    // When indoors, frame the Moon directly through the panoramic study window (-2.65, 3.55, -13.8)
     if (moonGroupRef.current) {
-      moonGroupRef.current.position.y = THREE.MathUtils.lerp(-3.8, 6.35, nm);
+      const targetMoonX = isIndoor ? -2.65 : -4.5;
+      const targetMoonTopY = isIndoor ? 3.55 : 6.35;
+      const moonRiseStartY = isIndoor ? 0.35 : -3.8;
+      moonGroupRef.current.position.x = THREE.MathUtils.damp(
+        moonGroupRef.current.position.x,
+        targetMoonX,
+        3.4,
+        dt,
+      );
+      moonGroupRef.current.position.y = THREE.MathUtils.lerp(
+        moonRiseStartY,
+        targetMoonTopY,
+        nm,
+      );
       moonGroupRef.current.visible = nm > 0.02;
-      moonGroupRef.current.scale.setScalar(Math.max(0.01, nm));
+      const moonScale = isIndoor ? 0.96 : 1.0;
+      moonGroupRef.current.scale.setScalar(Math.max(0.01, nm * moonScale));
     }
     if (moonMeshRef.current) {
       moonMeshRef.current.rotation.y = t * 0.06 + 0.8;
@@ -524,13 +566,21 @@ export function CelestialSky({
         grp.visible = false;
         c.cooldown -= dt * pace;
         if (c.cooldown <= 0) {
-          // Relaunch along a fresh majestic sky trajectory
+          // Relaunch along a fresh majestic sky trajectory (framed in window when indoors)
           const leftToRight = idx === 1;
-          c.startX = leftToRight ? -11.5 - Math.random() * 2 : 10.5 + Math.random() * 2.5;
-          c.endX = leftToRight ? 11.2 + Math.random() * 2 : -11.8 - Math.random() * 2;
-          c.startY = 5.4 + Math.random() * 2.2;
-          c.endY = 2.0 + Math.random() * 2.2;
-          c.arcLift = 0.85 + Math.random() * 0.65;
+          if (isIndoor) {
+            c.startX = leftToRight ? -7.2 - Math.random() * 1.5 : 3.2 + Math.random() * 1.5;
+            c.endX = leftToRight ? 2.8 + Math.random() * 1.5 : -7.5 - Math.random() * 1.5;
+            c.startY = 3.8 + Math.random() * 1.2;
+            c.endY = 2.0 + Math.random() * 1.1;
+            c.arcLift = 0.55 + Math.random() * 0.45;
+          } else {
+            c.startX = leftToRight ? -11.5 - Math.random() * 2 : 10.5 + Math.random() * 2.5;
+            c.endX = leftToRight ? 11.2 + Math.random() * 2 : -11.8 - Math.random() * 2;
+            c.startY = 5.4 + Math.random() * 2.2;
+            c.endY = 2.0 + Math.random() * 2.2;
+            c.arcLift = 0.85 + Math.random() * 0.65;
+          }
           c.progress = 0;
           c.active = true;
         }
@@ -894,9 +944,10 @@ export function CelestialSky({
             color="#f8fafc"
             emissive="#cbd5e1"
             emissiveMap={moonTextures.map}
-            emissiveIntensity={0.74}
+            emissiveIntensity={0.82}
             roughness={0.78}
             metalness={0.05}
+            fog={false}
           />
         </mesh>
         <sprite scale={[6.2, 6.2, 1]}>
@@ -904,9 +955,10 @@ export function CelestialSky({
             map={haloTex}
             color="#93c5fd"
             transparent
-            opacity={0.52}
+            opacity={0.56}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
+            fog={false}
           />
         </sprite>
         <mesh>
@@ -914,10 +966,11 @@ export function CelestialSky({
           <meshBasicMaterial
             color="#bfdbfe"
             transparent
-            opacity={0.28}
+            opacity={0.32}
             side={THREE.DoubleSide}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
+            fog={false}
           />
         </mesh>
       </group>
@@ -977,6 +1030,7 @@ export function CelestialSky({
               opacity={0}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
+              fog={false}
             />
           </sprite>
         ))}

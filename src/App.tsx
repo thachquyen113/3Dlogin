@@ -3,14 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { SanctuaryScene } from './components/scene/SanctuaryScene';
 import { ThemeToggle } from './components/ThemeToggle';
 import { LoginCard } from './components/LoginCard';
 import { SceneDock } from './components/SceneDock';
+import { BotanicalCursor } from './components/BotanicalCursor';
+import { WelcomeModal } from './components/WelcomeModal';
+import { OfficeSidebar } from './components/OfficeSidebar';
+import { StudyHoverTooltip } from './components/StudyHoverTooltip';
+import { ScholarChatModal } from './components/ScholarChatModal';
 import { isSoftwareGl } from './utils/webgl';
-import type { CameraPreset, SceneControlState, ThemeMode } from './types';
+import type {
+  AuthenticatedUser,
+  CameraPreset,
+  HoveredStudyItem,
+  OfficeCameraPreset,
+  SceneControlState,
+  ThemeMode,
+} from './types';
 
 export default function App() {
   const [sceneState, setSceneState] = useState<SceneControlState>({
@@ -21,7 +33,21 @@ export default function App() {
     breezeIntensity: 1.0,
     skySpeed: 1.0,
     zenMode: false,
+    isAuthenticated: false,
+    officeLampsOn: true,
   });
+
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser>({
+    name: 'Claire Linnea',
+    email: 'claire.botanist@sylva.garden',
+  });
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [scholarChatOpen, setScholarChatOpen] = useState(false);
+  const [scholarSpeaking, setScholarSpeaking] = useState(false);
+  const [hoveredStudyItem, setHoveredStudyItem] =
+    useState<HoveredStudyItem | null>(null);
+  const tooltipDomRef = useRef<HTMLDivElement | null>(null);
 
   // Sync root classes for CSS variables & software-GL optimization
   useEffect(() => {
@@ -56,6 +82,13 @@ export default function App() {
     }));
   }, []);
 
+  const handleSelectOfficeCamera = useCallback((cameraPreset: OfficeCameraPreset) => {
+    setSceneState((prev) => ({
+      ...prev,
+      cameraPreset,
+    }));
+  }, []);
+
   const handleChangeBreeze = useCallback((breezeIntensity: number) => {
     setSceneState((prev) => ({
       ...prev,
@@ -77,10 +110,66 @@ export default function App() {
     }));
   }, []);
 
+  const handleToggleOfficeLamps = useCallback(() => {
+    setSceneState((prev) => ({
+      ...prev,
+      officeLampsOn: !prev.officeLampsOn,
+    }));
+  }, []);
+
+  const handleOpenScholarChat = useCallback(() => {
+    setShowWelcomeModal(false);
+    setSidebarOpen(false);
+    setHoveredStudyItem(null);
+    setScholarChatOpen(true);
+    setSceneState((prev) => ({
+      ...prev,
+      cameraPreset: 'office-sofa',
+    }));
+  }, []);
+
+  const handleAuthenticated = useCallback((user: AuthenticatedUser) => {
+    setAuthenticatedUser(user);
+    setSidebarOpen(false);
+    setScholarChatOpen(false);
+    setScholarSpeaking(false);
+    setSceneState((prev) => ({
+      ...prev,
+      isAuthenticated: true,
+      cameraPreset: 'office-overview',
+      zenMode: false,
+      themeBurstId: prev.themeBurstId + 1,
+      lastTriggeredTheme: prev.theme,
+    }));
+    // 1. First show the welcome modal animation immediately upon entering the 3D office
+    setShowWelcomeModal(true);
+  }, []);
+
+  const handleSignOut = useCallback(() => {
+    setShowWelcomeModal(false);
+    setSidebarOpen(false);
+    setScholarChatOpen(false);
+    setScholarSpeaking(false);
+    setHoveredStudyItem(null);
+    setSceneState((prev) => ({
+      ...prev,
+      isAuthenticated: false,
+      cameraPreset: 'split',
+    }));
+  }, []);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden">
-      {/* Full-Bleed 3D React Three Fiber Canvas */}
-      <SanctuaryScene state={sceneState} />
+      {/* Full-Bleed 3D React Three Fiber Canvas (Garden Login <-> Post-Login 3D Office Study) */}
+      <SanctuaryScene
+        state={sceneState}
+        isConversing={scholarChatOpen}
+        isScholarSpeaking={scholarSpeaking}
+        onHoverStudyItem={setHoveredStudyItem}
+        tooltipDomRef={tooltipDomRef}
+        onSelectOfficeView={handleSelectOfficeCamera}
+        onOpenScholarChat={handleOpenScholarChat}
+      />
 
       {/* Smooth CSS-Variable Ambient Sunshine & Nocturnal Starlight Washes */}
       <div
@@ -117,120 +206,176 @@ export default function App() {
         />
       )}
 
-      {/* Semantic Foreground UI Overlay */}
-      <div className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none">
-        {/* 3-Zone Top Bar */}
-        <header className="w-full max-w-[1440px] mx-auto px-6 sm:px-10 pt-5 pb-3 flex items-center justify-between gap-8 pointer-events-auto">
-          {/* Zone 1: Single-line Brand Wordmark */}
-          <a
-            href="#sanctuary"
-            onClick={(e) => {
-              e.preventDefault();
-              handleSelectCamera('split');
+      {sceneState.isAuthenticated ? (
+        /* ==================== POST-LOGIN 3D OFFICE STUDY OVERLAY ==================== */
+        <>
+          {/* Top-Left Sidebar Menu Icon & Transparent Left Sidebar over 3D Background */}
+          <OfficeSidebar
+            open={sidebarOpen}
+            onToggleOpen={() => setSidebarOpen((prev) => !prev)}
+            onClose={() => setSidebarOpen(false)}
+            user={authenticatedUser}
+            theme={sceneState.theme}
+            onSelectTheme={handleSelectTheme}
+            cameraPreset={sceneState.cameraPreset}
+            onSelectCamera={handleSelectOfficeCamera}
+            lampsOn={sceneState.officeLampsOn}
+            onToggleLamps={handleToggleOfficeLamps}
+            onOpenScholarChat={handleOpenScholarChat}
+            onReopenWelcome={() => {
+              setSidebarOpen(false);
+              setScholarChatOpen(false);
+              setShowWelcomeModal(true);
             }}
-            className="font-display text-xl font-semibold tracking-tight whitespace-nowrap shrink-0 transition-colors duration-500"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            Sylva Sanctuary
-          </a>
+            onSignOut={handleSignOut}
+          />
 
-          {/* Zone 2: Clean Single-Line Text Navigation Links */}
-          <nav
-            aria-label="Sanctuary viewpoints"
-            className="hidden md:flex items-center gap-7 text-sm font-medium"
-          >
-            {(
-              [
-                { id: 'split', label: 'Overview' },
-                { id: 'garden', label: 'Meadow' },
-                { id: 'pond', label: 'Lotus Pond' },
-                { id: 'sky', label: 'Sky Dome' },
-              ] as const
-            ).map((item) => {
-              const active = sceneState.cameraPreset === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleSelectCamera(item.id)}
-                  className="relative py-1 whitespace-nowrap shrink-0 cursor-pointer transition-colors duration-200 hover:underline underline-offset-4"
-                  style={{
-                    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    fontWeight: active ? 600 : 500,
-                  }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Zone 3: Primary Theme Action (Light Sunshine / Dark Starry Sky) */}
-          <div className="shrink-0">
+          {/* Top-Right Theme Switcher preserved in Post-Login Office */}
+          <div className="fixed top-5 right-6 z-30 pointer-events-auto">
             <ThemeToggle theme={sceneState.theme} onSelectTheme={handleSelectTheme} />
           </div>
-        </header>
 
-        {/* Main Split Viewport Content */}
-        <main className="flex-1 w-full max-w-[1440px] mx-auto px-6 sm:px-10 pb-20 grid grid-cols-1 lg:grid-cols-12 items-center gap-8">
-          {/* Left Side: Open Unobstructed View of the 3D Living Botanical Garden */}
-          <div className="hidden lg:flex lg:col-span-7 h-full flex-col justify-end pb-6">
-            <div
-              className="max-w-md space-y-2 p-4 rounded-2xl transition-colors duration-500"
-              style={{
-                background:
-                  sceneState.theme === 'light'
-                    ? 'linear-gradient(90deg, rgba(255,253,248,0.58) 0%, rgba(255,253,248,0) 100%)'
-                    : 'linear-gradient(90deg, rgba(7,12,26,0.56) 0%, rgba(7,12,26,0) 100%)',
+          {/* Floating 3D-Projected Hover Tooltip for Bookshelf Volumes, Computer Screen & Old Scholar */}
+          <StudyHoverTooltip
+            item={showWelcomeModal ? null : hoveredStudyItem}
+            anchorRef={tooltipDomRef}
+          />
+
+          {/* Transparent Conversation Modal with Professor Arthur Linnea */}
+          <ScholarChatModal
+            open={scholarChatOpen && !showWelcomeModal}
+            onClose={() => {
+              setScholarChatOpen(false);
+              setScholarSpeaking(false);
+            }}
+            user={authenticatedUser}
+            theme={sceneState.theme}
+            onScholarSpeakingChange={setScholarSpeaking}
+          />
+
+          {/* 1. Animated Welcome Modal shown first after login */}
+          <WelcomeModal
+            open={showWelcomeModal}
+            user={authenticatedUser}
+            theme={sceneState.theme}
+            onClose={() => setShowWelcomeModal(false)}
+            onSelectOfficeView={handleSelectOfficeCamera}
+            onOpenSidebar={() => setSidebarOpen(true)}
+          />
+        </>
+      ) : (
+        /* ==================== PRE-LOGIN 3D BOTANICAL GARDEN OVERLAY ==================== */
+        <div className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none">
+          {/* 3-Zone Top Bar */}
+          <header className="w-full max-w-[1440px] mx-auto px-6 sm:px-10 pt-5 pb-3 flex items-center justify-between gap-8 pointer-events-auto">
+            {/* Zone 1: Single-line Brand Wordmark */}
+            <a
+              href="#sanctuary"
+              onClick={(e) => {
+                e.preventDefault();
+                handleSelectCamera('split');
               }}
+              className="font-display text-xl font-semibold tracking-tight whitespace-nowrap shrink-0 transition-colors duration-500"
+              style={{ color: 'var(--text-primary)' }}
             >
-              <p
-                className="font-display text-2xl font-semibold tracking-tight leading-snug"
-                style={{ color: 'var(--text-primary)', textWrap: 'balance' }}
-              >
-                {sceneState.theme === 'light'
-                  ? 'Drifting clouds and soaring birds cross the sunlit sky above the blossoming grove.'
-                  : 'Radiant star shine and luminous comets sweep across the moonlit sanctuary sky.'}
-              </p>
+              Sylva Sanctuary
+            </a>
+
+            {/* Zone 2: Clean Single-Line Text Navigation Links */}
+            <nav
+              aria-label="Sanctuary viewpoints"
+              className="hidden md:flex items-center gap-7 text-sm font-medium"
+            >
+              {(
+                [
+                  { id: 'split', label: 'Overview' },
+                  { id: 'garden', label: 'Meadow' },
+                  { id: 'pond', label: 'Lotus Pond' },
+                  { id: 'sky', label: 'Sky Dome' },
+                ] as const
+              ).map((item) => {
+                const active = sceneState.cameraPreset === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectCamera(item.id)}
+                    className="relative py-1 whitespace-nowrap shrink-0 cursor-pointer transition-colors duration-200 hover:underline underline-offset-4"
+                    style={{
+                      color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      fontWeight: active ? 600 : 500,
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Zone 3: Primary Theme Action (Light Sunshine / Dark Starry Sky) */}
+            <div className="shrink-0">
+              <ThemeToggle theme={sceneState.theme} onSelectTheme={handleSelectTheme} />
+            </div>
+          </header>
+
+          {/* Main Split Viewport Content */}
+          <main className="flex-1 w-full max-w-[1440px] mx-auto px-6 sm:px-10 pb-20 grid grid-cols-1 lg:grid-cols-12 items-center gap-8">
+            {/* Left Side: Open Unobstructed View of the 3D Living Botanical Garden */}
+            <div className="hidden lg:flex lg:col-span-7 h-full flex-col justify-end pb-6">
               <div
-                className="flex items-center gap-2 text-xs"
-                style={{ color: 'var(--text-secondary)' }}
+                className="max-w-md space-y-2 p-4 rounded-2xl transition-colors duration-500"
+                style={{
+                  background:
+                    sceneState.theme === 'light'
+                      ? 'linear-gradient(90deg, rgba(255,253,248,0.58) 0%, rgba(255,253,248,0) 100%)'
+                      : 'linear-gradient(90deg, rgba(7,12,26,0.56) 0%, rgba(7,12,26,0) 100%)',
+                }}
               >
-                <span>Living 3D Conservatory</span>
-                <span aria-hidden="true">·</span>
-                <span>
+                <p
+                  className="font-display text-2xl font-semibold tracking-tight leading-snug"
+                  style={{ color: 'var(--text-primary)', textWrap: 'balance' }}
+                >
                   {sceneState.theme === 'light'
-                    ? 'Clouds & Sky Flock Active'
-                    : 'Star Shine & Comets Active'}
-                </span>
+                    ? 'Drifting clouds and soaring birds cross the sunlit sky above the blossoming grove.'
+                    : 'Radiant star shine and luminous comets sweep across the moonlit sanctuary sky.'}
+                </p>
+                <div
+                  className="flex items-center gap-2 text-xs"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  <span>Living 3D Conservatory</span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {sceneState.theme === 'light'
+                      ? 'Clouds & Sky Flock Active'
+                      : 'Star Shine & Comets Active'}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Right Side: Blurred Transparent Login Card */}
-          <div className="col-span-1 lg:col-span-5 flex items-center justify-center lg:justify-end">
-            <AnimatePresence>
-              {!sceneState.zenMode && (
-                <motion.div
-                  initial={{ opacity: 0, x: 24, scale: 0.98 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: 28, scale: 0.97 }}
-                  transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full flex justify-center lg:justify-end"
-                >
-                  <LoginCard
-                    theme={sceneState.theme}
-                    onTriggerCelestialEffect={handleTriggerCelestialEffect}
-                    onSelectCameraPreset={handleSelectCamera}
-                    breezeIntensity={sceneState.breezeIntensity}
-                    onChangeBreeze={handleChangeBreeze}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </main>
-      </div>
+            {/* Right Side: Blurred Transparent Login Card */}
+            <div className="col-span-1 lg:col-span-5 flex items-center justify-center lg:justify-end">
+              <AnimatePresence>
+                {!sceneState.zenMode && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 24, scale: 0.98 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 28, scale: 0.97 }}
+                    transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full flex justify-center lg:justify-end"
+                  >
+                    <LoginCard
+                      theme={sceneState.theme}
+                      onAuthenticated={handleAuthenticated}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </main>
+        </div>
+      )}
 
       {/* Collapsible Unified Scene Control Dock at Bottom Center */}
       <SceneDock
@@ -240,6 +385,13 @@ export default function App() {
         onChangeSkySpeed={handleChangeSkySpeed}
         onTriggerCelestialEvent={handleTriggerCelestialEffect}
         onToggleZenMode={handleToggleZenMode}
+        onToggleOfficeLamps={handleToggleOfficeLamps}
+      />
+
+      {/* Custom Framer Motion Botanical Cursor & Subtle Particle Trail */}
+      <BotanicalCursor
+        theme={sceneState.theme}
+        externalInteractive={Boolean(hoveredStudyItem && !showWelcomeModal)}
       />
     </div>
   );

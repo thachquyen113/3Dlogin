@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -7,7 +7,13 @@ import { GardenTerrain } from './GardenTerrain';
 import { GardenFlora } from './GardenFlora';
 import { GardenFauna } from './GardenFauna';
 import { CelestialSky } from './CelestialSky';
-import type { CameraPreset, SceneControlState } from '../../types';
+import { OfficeStudyScene } from './OfficeStudyScene';
+import type {
+  CameraPreset,
+  HoveredStudyItem,
+  OfficeCameraPreset,
+  SceneControlState,
+} from '../../types';
 
 // Pre-allocated colors & vectors outside render loop (zero GC)
 const _dayKeyColor = new THREE.Color('#fff2cc');
@@ -18,6 +24,8 @@ const _nightSkyFill = new THREE.Color('#233d7a');
 
 const _dayGroundFill = new THREE.Color('#5a8751');
 const _nightGroundFill = new THREE.Color('#0c192c');
+const _indoorDayGroundFill = new THREE.Color('#8c6a4a');
+const _indoorNightGroundFill = new THREE.Color('#1c2233');
 
 const _dayFogColor = new THREE.Color('#dff0f6');
 const _nightFogColor = new THREE.Color('#0d1a36');
@@ -29,7 +37,7 @@ const CAMERA_PRESETS: Record<
   CameraPreset,
   { pos: [number, number, number]; look: [number, number, number] }
 > = {
-  // Default split composition: lush 3D garden clearly framed on left, rotating particle vortex framed behind right login card
+  // Outdoor Login Botanical Sanctuary Presets
   split: {
     pos: [0.15, 2.25, 8.65],
     look: [-0.35, 1.35, -0.4],
@@ -46,6 +54,24 @@ const CAMERA_PRESETS: Record<
     pos: [0.35, 1.55, 7.8],
     look: [-2.8, 3.85, -6.5],
   },
+
+  // Post-Login 3D Indoor Office & Scholar Study Presets
+  'office-overview': {
+    pos: [0.25, 2.28, 5.35],
+    look: [0.15, 1.18, -1.15],
+  },
+  'office-sofa': {
+    pos: [-0.12, 1.62, 2.38],
+    look: [-0.98, 0.95, -0.56],
+  },
+  'office-desk': {
+    pos: [1.15, 1.72, 2.35],
+    look: [2.38, 1.08, -0.62],
+  },
+  'office-books': {
+    pos: [-0.65, 1.92, 2.65],
+    look: [1.45, 1.55, -3.35],
+  },
 };
 
 function StudioEnvironment() {
@@ -61,7 +87,6 @@ function StudioEnvironment() {
     pmremGenerator.dispose();
 
     if (!isSoftwareGl) {
-      // Pre-warm shaders once environment is ready
       requestAnimationFrame(() => {
         try {
           gl.compile(scene, new THREE.PerspectiveCamera());
@@ -130,9 +155,13 @@ function SoftwareGlPacer() {
 function LightingAndCameraRig({
   theme,
   cameraPreset,
+  isAuthenticated,
+  isConversing,
 }: {
   theme: SceneControlState['theme'];
   cameraPreset: CameraPreset;
+  isAuthenticated: boolean;
+  isConversing: boolean;
 }) {
   const { camera, pointer, scene } = useThree();
   const keyLightRef = useRef<THREE.DirectionalLight>(null);
@@ -141,6 +170,8 @@ function LightingAndCameraRig({
 
   const currentLookAt = useRef(new THREE.Vector3(-0.35, 1.35, -0.4));
   const nightMix = useRef(theme === 'dark' ? 1 : 0);
+  const indoorMix = useRef(isAuthenticated ? 1 : 0);
+  const converseCamMix = useRef(0);
 
   const fog = useMemo(
     () => new THREE.FogExp2(theme === 'dark' ? '#0d1a36' : '#dff0f6', 0.022),
@@ -158,17 +189,36 @@ function LightingAndCameraRig({
     const dt = Math.min(delta, 0.1);
     const targetNight = theme === 'dark' ? 1 : 0;
     nightMix.current = THREE.MathUtils.damp(nightMix.current, targetNight, 2.5, dt);
-    const nm = nightMix.current;
+    indoorMix.current = THREE.MathUtils.damp(
+      indoorMix.current,
+      isAuthenticated ? 1 : 0,
+      3.0,
+      dt,
+    );
 
-    // Smoothly interpolate Fog color & density
+    const nm = nightMix.current;
+    const im = indoorMix.current;
+
+    // Smoothly interpolate Fog color & clear indoor density so bookshelves stay crisp
     fog.color.lerpColors(_dayFogColor, _nightFogColor, nm);
-    fog.density = THREE.MathUtils.lerp(0.018, 0.024, nm);
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.72, 0.36, nm);
+    const outdoorFog = THREE.MathUtils.lerp(0.018, 0.024, nm);
+    const indoorFog = THREE.MathUtils.lerp(0.005, 0.008, nm);
+    fog.density = THREE.MathUtils.lerp(outdoorFog, indoorFog, im);
+
+    const outdoorEnv = THREE.MathUtils.lerp(0.72, 0.36, nm);
+    const indoorEnv = THREE.MathUtils.lerp(0.68, 0.48, nm);
+    scene.environmentIntensity = THREE.MathUtils.lerp(outdoorEnv, indoorEnv, im);
 
     // Smoothly transition Key Light (Sun -> Moon)
     if (keyLightRef.current) {
       keyLightRef.current.color.lerpColors(_dayKeyColor, _nightKeyColor, nm);
-      keyLightRef.current.intensity = THREE.MathUtils.lerp(2.35, 1.15, nm);
+      const outdoorIntensity = THREE.MathUtils.lerp(2.35, 1.15, nm);
+      const indoorIntensity = THREE.MathUtils.lerp(1.75, 0.85, nm);
+      keyLightRef.current.intensity = THREE.MathUtils.lerp(
+        outdoorIntensity,
+        indoorIntensity,
+        im,
+      );
       keyLightRef.current.position.set(
         THREE.MathUtils.lerp(-6.8, -4.6, nm),
         THREE.MathUtils.lerp(8.5, 7.6, nm),
@@ -179,28 +229,47 @@ function LightingAndCameraRig({
     // Smoothly transition Sky/Ground Hemisphere Fill
     if (hemiLightRef.current) {
       hemiLightRef.current.color.lerpColors(_daySkyFill, _nightSkyFill, nm);
-      hemiLightRef.current.groundColor.lerpColors(_dayGroundFill, _nightGroundFill, nm);
-      hemiLightRef.current.intensity = THREE.MathUtils.lerp(0.95, 0.58, nm);
+      if (im > 0.5) {
+        hemiLightRef.current.groundColor.lerpColors(
+          _indoorDayGroundFill,
+          _indoorNightGroundFill,
+          nm,
+        );
+      } else {
+        hemiLightRef.current.groundColor.lerpColors(_dayGroundFill, _nightGroundFill, nm);
+      }
+      hemiLightRef.current.intensity = THREE.MathUtils.lerp(0.95, 0.62, nm);
     }
 
     // Rim Light
     if (rimLightRef.current) {
-      rimLightRef.current.intensity = THREE.MathUtils.lerp(0.55, 0.85, nm);
+      rimLightRef.current.intensity = THREE.MathUtils.lerp(0.55, 0.8, nm);
     }
 
-    // Damped Camera Choreography + Subtle Cursor Parallax
+    // Damped Camera Choreography + Subtle Cursor Parallax + Conversation Framing
+    const shouldFrameConversation =
+      isAuthenticated && isConversing && cameraPreset === 'office-sofa';
+    converseCamMix.current = THREE.MathUtils.damp(
+      converseCamMix.current,
+      shouldFrameConversation ? 1 : 0,
+      3.5,
+      dt,
+    );
+    const cm = converseCamMix.current;
+
     const preset = CAMERA_PRESETS[cameraPreset];
-    const parallaxX = pointer.x * 0.32;
-    const parallaxY = pointer.y * 0.18;
+    const parallaxScale = isAuthenticated ? 0.55 : 1.0;
+    const parallaxX = pointer.x * 0.32 * parallaxScale;
+    const parallaxY = pointer.y * 0.18 * parallaxScale;
 
     _targetCamPos.set(
-      preset.pos[0] + parallaxX,
+      preset.pos[0] + parallaxX + cm * 0.42,
       preset.pos[1] + parallaxY,
-      preset.pos[2],
+      preset.pos[2] + cm * 0.24,
     );
     _targetLookAt.set(
-      preset.look[0] + parallaxX * 0.35,
-      preset.look[1] + parallaxY * 0.25,
+      preset.look[0] + parallaxX * 0.35 + cm * 0.54,
+      preset.look[1] + parallaxY * 0.25 + cm * 0.04,
       preset.look[2],
     );
 
@@ -244,7 +313,23 @@ function LightingAndCameraRig({
   );
 }
 
-export function SanctuaryScene({ state }: { state: SceneControlState }) {
+export function SanctuaryScene({
+  state,
+  isConversing,
+  isScholarSpeaking,
+  onHoverStudyItem,
+  tooltipDomRef,
+  onSelectOfficeView,
+  onOpenScholarChat,
+}: {
+  state: SceneControlState;
+  isConversing: boolean;
+  isScholarSpeaking: boolean;
+  onHoverStudyItem: React.Dispatch<React.SetStateAction<HoveredStudyItem | null>>;
+  tooltipDomRef: React.RefObject<HTMLDivElement | null>;
+  onSelectOfficeView: (preset: OfficeCameraPreset) => void;
+  onOpenScholarChat: () => void;
+}) {
   const [contextLost, setContextLost] = useState(false);
 
   return (
@@ -291,25 +376,44 @@ export function SanctuaryScene({ state }: { state: SceneControlState }) {
           <LightingAndCameraRig
             theme={state.theme}
             cameraPreset={state.cameraPreset}
+            isAuthenticated={state.isAuthenticated}
+            isConversing={isConversing}
           />
+          {/* CelestialSky remains active in both outdoor garden & outside the 3D office window */}
           <CelestialSky
             theme={state.theme}
             themeBurstId={state.themeBurstId}
             lastTriggeredTheme={state.lastTriggeredTheme}
             skySpeed={state.skySpeed}
           />
-          <GardenTerrain
-            theme={state.theme}
-            breezeIntensity={state.breezeIntensity}
-          />
-          <GardenFlora
-            theme={state.theme}
-            breezeIntensity={state.breezeIntensity}
-          />
-          <GardenFauna
-            theme={state.theme}
-            breezeIntensity={state.breezeIntensity}
-          />
+
+          {state.isAuthenticated ? (
+            <OfficeStudyScene
+              theme={state.theme}
+              lampsOn={state.officeLampsOn}
+              isConversing={isConversing}
+              isScholarSpeaking={isScholarSpeaking}
+              onHoverStudyItem={onHoverStudyItem}
+              tooltipDomRef={tooltipDomRef}
+              onSelectOfficeView={onSelectOfficeView}
+              onOpenScholarChat={onOpenScholarChat}
+            />
+          ) : (
+            <>
+              <GardenTerrain
+                theme={state.theme}
+                breezeIntensity={state.breezeIntensity}
+              />
+              <GardenFlora
+                theme={state.theme}
+                breezeIntensity={state.breezeIntensity}
+              />
+              <GardenFauna
+                theme={state.theme}
+                breezeIntensity={state.breezeIntensity}
+              />
+            </>
+          )}
         </Canvas>
       )}
     </div>
