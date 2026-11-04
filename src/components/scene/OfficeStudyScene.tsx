@@ -20,6 +20,9 @@ interface OfficeStudySceneProps {
   lampsOn: boolean;
   isConversing: boolean;
   isScholarSpeaking: boolean;
+  scholarExternalEngaged: boolean;
+  scholarLabelDomRef: React.RefObject<HTMLDivElement | null>;
+  onScholarPointerChange: (engaged: boolean) => void;
   onHoverStudyItem: React.Dispatch<React.SetStateAction<HoveredStudyItem | null>>;
   tooltipDomRef: React.RefObject<HTMLDivElement | null>;
   onSelectOfficeView: (preset: OfficeCameraPreset) => void;
@@ -157,6 +160,31 @@ function projectObjectToScreen(
   return {
     x: Math.max(140, Math.min(width - 140, rawX)),
     y: Math.max(118, Math.min(height - 32, rawY)),
+  };
+}
+
+function projectScholarLabelToScreen(
+  obj: THREE.Object3D,
+  localOffsetY: number,
+  camera: THREE.Camera,
+  width: number,
+  height: number,
+): { x: number; y: number; inView: boolean } {
+  obj.updateWorldMatrix(true, false);
+  _projWorldPos.set(0, localOffsetY, 0).applyMatrix4(obj.matrixWorld);
+  _projNdcPos.copy(_projWorldPos).project(camera);
+  const inView =
+    _projNdcPos.z <= 1 &&
+    _projNdcPos.x >= -1.08 &&
+    _projNdcPos.x <= 1.08 &&
+    _projNdcPos.y >= -1.08 &&
+    _projNdcPos.y <= 1.08;
+  const rawX = (_projNdcPos.x * 0.5 + 0.5) * width;
+  const rawY = (-_projNdcPos.y * 0.5 + 0.5) * height;
+  return {
+    x: Math.max(108, Math.min(width - 108, rawX)),
+    y: Math.max(82, Math.min(height - 48, rawY)),
+    inView,
   };
 }
 
@@ -799,8 +827,9 @@ function SofaWithReadingScholar({
   theme,
   isConversing,
   isScholarSpeaking,
-  onStartHover,
-  onEndHover,
+  scholarExternalEngaged,
+  scholarAnchorRef,
+  onScholarRaycastHoverChange,
   onOpenScholarChat,
 }: {
   position: [number, number, number];
@@ -811,12 +840,9 @@ function SofaWithReadingScholar({
   theme: ThemeMode;
   isConversing: boolean;
   isScholarSpeaking: boolean;
-  onStartHover: (
-    anchorObj: THREE.Object3D,
-    localOffsetY: number,
-    meta: Omit<HoveredStudyItem, 'initialX' | 'initialY'>,
-  ) => void;
-  onEndHover: (id: string) => void;
+  scholarExternalEngaged: boolean;
+  scholarAnchorRef: React.MutableRefObject<THREE.Object3D | null>;
+  onScholarRaycastHoverChange: (hovered: boolean) => void;
   onOpenScholarChat: () => void;
 }) {
   const scholarGroupRef = useRef<THREE.Group>(null);
@@ -827,27 +853,75 @@ function SofaWithReadingScholar({
   const leftArmRef = useRef<THREE.Group>(null);
   const turningPageRef = useRef<THREE.Group>(null);
   const bookGroupRef = useRef<THREE.Group>(null);
-  const cardiganMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const glassesRimLeftRef = useRef<THREE.MeshStandardMaterial>(null);
   const glassesRimRightRef = useRef<THREE.MeshStandardMaterial>(null);
   const auraRingMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const leaveTimerRef = useRef<number | null>(null);
+
+  // Shared tailored navy-charcoal suit wool material (highlights jacket + sleeves uniformly on hover)
+  const suitJacketMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: '#1e2b3e',
+        emissive: '#d97706',
+        emissiveIntensity: 0,
+        roughness: 0.66,
+        metalness: 0.04,
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    scholarAnchorRef.current = scholarGroupRef.current;
+    return () => {
+      scholarAnchorRef.current = null;
+      if (leaveTimerRef.current !== null) {
+        window.clearTimeout(leaveTimerRef.current);
+      }
+      suitJacketMat.dispose();
+    };
+  }, [scholarAnchorRef, suitJacketMat]);
 
   const [scholarHovered, setScholarHovered] = useState(false);
   const hoverMix = useRef(0);
   const lookUpMix = useRef(0);
   const speakMix = useRef(0);
 
+  const activateScholarPointer = useCallback(() => {
+    if (leaveTimerRef.current !== null) {
+      window.clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    document.body.style.cursor = 'pointer';
+    setScholarHovered(true);
+    onScholarRaycastHoverChange(true);
+  }, [onScholarRaycastHoverChange]);
+
+  const scheduleDeactivateScholarPointer = useCallback(() => {
+    if (leaveTimerRef.current !== null) {
+      window.clearTimeout(leaveTimerRef.current);
+    }
+    leaveTimerRef.current = window.setTimeout(() => {
+      leaveTimerRef.current = null;
+      document.body.style.cursor = '';
+      setScholarHovered(false);
+      onScholarRaycastHoverChange(false);
+    }, 220);
+  }, [onScholarRaycastHoverChange]);
+
   useFrame(({ clock }, delta) => {
     const dt = Math.min(delta, 0.1);
     const t = clock.getElapsedTime();
 
+    const isHighlighted = scholarHovered || scholarExternalEngaged;
+
     hoverMix.current = THREE.MathUtils.damp(
       hoverMix.current,
-      scholarHovered ? 1 : 0,
+      isHighlighted ? 1 : 0,
       10,
       dt,
     );
-    const targetLookUp = isConversing ? 1 : scholarHovered ? 0.52 : 0;
+    const targetLookUp = isConversing ? 1 : isHighlighted ? 0.56 : 0;
     lookUpMix.current = THREE.MathUtils.damp(
       lookUpMix.current,
       targetLookUp,
@@ -865,10 +939,8 @@ function SofaWithReadingScholar({
     const lm = lookUpMix.current;
     const sm = speakMix.current;
 
-    // Subtle warm highlight on wool cardigan & gold glasses when hovered or conversing
-    if (cardiganMatRef.current) {
-      cardiganMatRef.current.emissiveIntensity = hm * 0.28 + (isConversing ? 0.12 : 0);
-    }
+    // Subtle warm highlight on tailored suit blazer & gold glasses when hovered, focused, or conversing
+    suitJacketMat.emissiveIntensity = hm * 0.24 + (isConversing ? 0.1 : 0);
     if (glassesRimLeftRef.current) {
       glassesRimLeftRef.current.emissiveIntensity = hm * 0.45 + sm * 0.25;
     }
@@ -879,12 +951,12 @@ function SofaWithReadingScholar({
       auraRingMatRef.current.opacity = hm * 0.34 + (isConversing ? 0.16 : 0);
     }
 
-    // Calm breathing cycle + attentive posture shift when conversing
+    // Calm breathing cycle + upright 60-year-old posture
     const breath = Math.sin(t * 1.45);
     if (upperBodyRef.current) {
-      upperBodyRef.current.position.y = 0.67 + breath * 0.008;
+      upperBodyRef.current.position.y = 0.68 + breath * 0.007;
       upperBodyRef.current.rotation.x =
-        THREE.MathUtils.lerp(0.08, 0.03, lm) + breath * 0.014;
+        THREE.MathUtils.lerp(0.045, 0.015, lm) + breath * 0.012;
       upperBodyRef.current.rotation.y = THREE.MathUtils.lerp(0, 0.08, lm);
     }
 
@@ -915,10 +987,10 @@ function SofaWithReadingScholar({
         Math.sin(t * 0.45) * 0.022 + Math.sin(t * 3.1) * 0.02 * sm;
     }
 
-    // Subtle beard/jaw articulation while speaking an answer
+    // Subtle trimmed-beard / jaw articulation while speaking an answer
     if (beardRef.current) {
       beardRef.current.position.y =
-        -0.082 - Math.abs(Math.sin(t * 8.6)) * 0.012 * sm;
+        -0.068 - Math.abs(Math.sin(t * 8.6)) * 0.009 * sm;
     }
 
     // Right forearm turns pages when reading, or gestures gently when speaking
@@ -1066,39 +1138,42 @@ function SofaWithReadingScholar({
         shadowTex={shadowTex}
       />
 
-      {/* ==================== 2. INTERACTIVE OLD MAN SITTING, READING & CONVERSING ==================== */}
+      {/* ==================== 2. INTERACTIVE 60-YEAR-OLD SCHOLAR IN TAILORED SUIT ==================== */}
       <group
         ref={scholarGroupRef}
         position={[-0.14, 0, 0.04]}
+        onPointerEnter={(e) => {
+          e.stopPropagation();
+          activateScholarPointer();
+        }}
         onPointerOver={(e) => {
           e.stopPropagation();
-          setScholarHovered(true);
-          if (scholarGroupRef.current) {
-            onStartHover(scholarGroupRef.current, 1.48, {
-              id: 'study-old-scholar',
-              kind: 'scholar',
-              category: 'Scholar in Residence · Reading Sofa',
-              title: 'Prof. Arthur Linnea',
-              subtitle: 'Botanist & Natural Philosopher',
-              detail: isConversing
-                ? 'In conversation · Ask a question in the panel →'
-                : 'Click to ask a question & converse',
-              accentColor: '#e5951a',
-            });
-          }
+          activateScholarPointer();
+        }}
+        onPointerMove={(e) => {
+          e.stopPropagation();
+          activateScholarPointer();
         }}
         onPointerOut={(e) => {
           e.stopPropagation();
-          setScholarHovered(false);
-          onEndHover('study-old-scholar');
+          scheduleDeactivateScholarPointer();
         }}
         onClick={(e) => {
           e.stopPropagation();
-          setScholarHovered(false);
-          onEndHover('study-old-scholar');
           onOpenScholarChat();
         }}
       >
+        {/* Invisible simplified hit-volume proxy around the person & open book for smooth hover/move detection */}
+        <mesh position={[0, 0.76, 0.14]}>
+          <capsuleGeometry args={[0.35, 0.84, 6, 12]} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            colorWrite={false}
+          />
+        </mesh>
+
         {/* Subtle floor/seat golden interaction ring when hovered or conversing */}
         <mesh position={[0, 0.024, 0.12]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.38, 0.44, 32]} />
@@ -1111,153 +1186,234 @@ function SofaWithReadingScholar({
           />
         </mesh>
 
-        {/* Seated Pelvis / Trousers Base */}
+        {/* Seated Suit Trousers Pelvis + Leather Belt & Gold Buckle */}
         <mesh position={[0, 0.58, -0.05]} castShadow={!isSoftwareGl}>
           <boxGeometry args={[0.38, 0.15, 0.3]} />
-          <meshStandardMaterial color="#4a3f37" roughness={0.86} />
+          <meshStandardMaterial color="#1b2638" roughness={0.68} />
+        </mesh>
+        <mesh position={[0, 0.65, 0.08]}>
+          <boxGeometry args={[0.35, 0.032, 0.06]} />
+          <meshStandardMaterial color="#1c120c" roughness={0.42} />
+        </mesh>
+        <mesh position={[0, 0.65, 0.114]}>
+          <boxGeometry args={[0.046, 0.036, 0.012]} />
+          <meshStandardMaterial color="#d4af37" metalness={0.86} roughness={0.22} />
         </mesh>
 
-        {/* Left & Right Seated Thighs + Lower Shins + Leather Loafers */}
+        {/* Left & Right Tailored Suit Trousers + Navy Dress Socks + Polished Oxford Shoes */}
         {[-0.105, 0.105].map((lx, idx) => (
           <group key={idx}>
-            {/* Thigh resting on sofa cushion */}
+            {/* Tailored Suit Thigh resting on sofa cushion */}
             <mesh
               position={[lx, 0.58, 0.17]}
               rotation={[Math.PI / 2 - 0.06, idx === 0 ? 0.04 : -0.04, 0]}
               castShadow={!isSoftwareGl}
             >
-              <capsuleGeometry args={[0.078, 0.3, 8, 14]} />
-              <meshStandardMaterial color="#4a3f37" roughness={0.85} />
+              <capsuleGeometry args={[0.076, 0.3, 8, 14]} />
+              <meshStandardMaterial color="#1d293b" roughness={0.66} />
             </mesh>
-            {/* Lower Calf angling down to floor rug */}
+            {/* Pressed Suit Trouser Leg angling down to floor rug */}
             <mesh
               position={[lx * 1.08, 0.32, 0.42]}
               rotation={[0.16, 0, 0]}
               castShadow={!isSoftwareGl}
             >
-              <capsuleGeometry args={[0.066, 0.34, 8, 14]} />
-              <meshStandardMaterial color="#463b33" roughness={0.85} />
+              <capsuleGeometry args={[0.064, 0.34, 8, 14]} />
+              <meshStandardMaterial color="#1a2536" roughness={0.66} />
             </mesh>
-            {/* Warm Sock Ankle */}
-            <mesh position={[lx * 1.08, 0.12, 0.46]}>
-              <cylinderGeometry args={[0.05, 0.05, 0.08, 10]} />
-              <meshStandardMaterial color="#7d3b2e" roughness={0.85} />
+            {/* Crisp Trouser Hem Cuff */}
+            <mesh position={[lx * 1.08, 0.155, 0.45]} rotation={[0.16, 0, 0]}>
+              <cylinderGeometry args={[0.066, 0.066, 0.03, 14]} />
+              <meshStandardMaterial color="#172131" roughness={0.68} />
             </mesh>
-            {/* Polished Brown Leather Loafer */}
-            <group position={[lx * 1.1, 0.055, 0.53]} rotation={[0, idx === 0 ? 0.06 : -0.06, 0]}>
-              <mesh scale={[0.075, 0.052, 0.145]} castShadow={!isSoftwareGl}>
-                <sphereGeometry args={[1, 14, 10]} />
-                <meshStandardMaterial color="#2f1c12" roughness={0.42} />
+            {/* Dark Navy Ribbed Dress Sock */}
+            <mesh position={[lx * 1.08, 0.115, 0.46]}>
+              <cylinderGeometry args={[0.046, 0.046, 0.075, 10]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.82} />
+            </mesh>
+            {/* Polished Espresso-Black Leather Oxford Dress Shoe */}
+            <group position={[lx * 1.1, 0.055, 0.535]} rotation={[0, idx === 0 ? 0.05 : -0.05, 0]}>
+              <mesh scale={[0.072, 0.05, 0.15]} castShadow={!isSoftwareGl}>
+                <sphereGeometry args={[1, 16, 12]} />
+                <meshStandardMaterial color="#1b110c" roughness={0.24} metalness={0.1} />
               </mesh>
+              {/* Oxford Cap-Toe Seam Accent */}
+              <mesh position={[0, 0.008, 0.075]} scale={[0.062, 0.036, 0.065]}>
+                <sphereGeometry args={[1, 12, 10]} />
+                <meshStandardMaterial color="#140c08" roughness={0.18} metalness={0.14} />
+              </mesh>
+              {/* Welted Leather Sole & Heel */}
               <mesh position={[0, -0.032, 0]}>
-                <boxGeometry args={[0.13, 0.022, 0.25]} />
-                <meshStandardMaterial color="#1f120b" roughness={0.7} />
+                <boxGeometry args={[0.126, 0.022, 0.258]} />
+                <meshStandardMaterial color="#0d0806" roughness={0.58} />
               </mesh>
             </group>
           </group>
         ))}
 
-        {/* Breathing Upper Body: Warm Knit Cardigan + Ivory Shirt + Head */}
-        <group ref={upperBodyRef} position={[0, 0.67, -0.07]} rotation={[0.08, 0, 0]}>
-          {/* Knit Wool Cardigan Torso */}
-          <mesh position={[0, 0.22, 0]} castShadow={!isSoftwareGl}>
-            <capsuleGeometry args={[0.185, 0.26, 10, 18]} />
-            <meshStandardMaterial
-              ref={cardiganMatRef}
-              color="#6e2e2a"
-              emissive="#d97706"
-              emissiveIntensity={0}
-              roughness={0.88}
-            />
+        {/* Upright 60-Year-Old Upper Body: Tailored Suit Jacket, Dress Shirt, Silk Tie & Head */}
+        <group ref={upperBodyRef} position={[0, 0.68, -0.07]} rotation={[0.045, 0, 0]}>
+          {/* Tailored Suit Blazer Torso */}
+          <mesh position={[0, 0.22, 0]} material={suitJacketMat} castShadow={!isSoftwareGl}>
+            <capsuleGeometry args={[0.186, 0.27, 10, 18]} />
           </mesh>
 
-          {/* Ivory Collared Shirt V-Neck Insert */}
-          <mesh position={[0, 0.34, 0.145]} rotation={[-0.18, 0, 0]}>
-            <boxGeometry args={[0.13, 0.18, 0.06]} />
-            <meshStandardMaterial color="#f5efe2" roughness={0.76} />
-          </mesh>
-
-          {/* Cardigan Shawl Lapels & Brass Buttons */}
-          {[-0.075, 0.075].map((sx, i) => (
+          {/* Structured Tailored Suit Shoulders */}
+          {[-0.185, 0.185].map((sx, i) => (
             <mesh
               key={i}
-              position={[sx, 0.28, 0.165]}
-              rotation={[0, 0, i === 0 ? -0.18 : 0.18]}
+              position={[sx, 0.365, 0.01]}
+              scale={[0.85, 0.62, 0.92]}
+              material={suitJacketMat}
+              castShadow={!isSoftwareGl}
             >
-              <boxGeometry args={[0.045, 0.28, 0.04]} />
-              <meshStandardMaterial color="#582320" roughness={0.9} />
+              <sphereGeometry args={[0.078, 12, 10]} />
             </mesh>
           ))}
-          {[0.08, 0.15, 0.22].map((by, i) => (
+
+          {/* Crisp White Poplin Dress Shirt V-Front */}
+          <mesh position={[0, 0.33, 0.146]} rotation={[-0.16, 0, 0]}>
+            <boxGeometry args={[0.135, 0.21, 0.058]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.48} />
+          </mesh>
+
+          {/* Structured Spread Shirt Collar Wings */}
+          {[-0.044, 0.044].map((cx, i) => (
+            <mesh
+              key={i}
+              position={[cx, 0.428, 0.092]}
+              rotation={[0.25, i === 0 ? 0.35 : -0.35, i === 0 ? -0.32 : 0.32]}
+            >
+              <boxGeometry args={[0.062, 0.042, 0.022]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.44} />
+            </mesh>
+          ))}
+
+          {/* Silk Burgundy-Crimson Necktie (Windsor Knot + Tapered Blade + Gold Tie Bar) */}
+          <mesh position={[0, 0.405, 0.128]} scale={[1.05, 0.95, 0.78]}>
+            <sphereGeometry args={[0.022, 10, 10]} />
+            <meshStandardMaterial color="#7f1d28" roughness={0.32} metalness={0.08} />
+          </mesh>
+          <mesh position={[0, 0.285, 0.166]} rotation={[-0.16, 0, 0]}>
+            <boxGeometry args={[0.036, 0.21, 0.016]} />
+            <meshStandardMaterial color="#881f2b" roughness={0.32} metalness={0.08} />
+          </mesh>
+          <mesh position={[0, 0.295, 0.176]} rotation={[-0.16, 0, 0]}>
+            <boxGeometry args={[0.038, 0.007, 0.008]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.88} roughness={0.2} />
+          </mesh>
+
+          {/* Sharp Notched Suit Lapels (Upper Collar + Lower Blade) */}
+          {[-0.076, 0.076].map((sx, i) => (
+            <group key={i}>
+              <mesh
+                position={[sx, 0.265, 0.166]}
+                rotation={[-0.1, i === 0 ? 0.12 : -0.12, i === 0 ? -0.22 : 0.22]}
+                material={suitJacketMat}
+              >
+                <boxGeometry args={[0.048, 0.26, 0.032]} />
+              </mesh>
+              <mesh
+                position={[sx * 1.12, 0.392, 0.118]}
+                rotation={[-0.22, 0, i === 0 ? -0.42 : 0.42]}
+                material={suitJacketMat}
+              >
+                <boxGeometry args={[0.042, 0.08, 0.028]} />
+              </mesh>
+            </group>
+          ))}
+
+          {/* Left Breast Welt Pocket + Crisp Folded Silk Pocket Square */}
+          <mesh position={[-0.108, 0.305, 0.164]} rotation={[-0.1, -0.22, 0.05]}>
+            <boxGeometry args={[0.054, 0.012, 0.016]} />
+            <meshStandardMaterial color="#131c29" roughness={0.7} />
+          </mesh>
+          <mesh position={[-0.106, 0.322, 0.164]} rotation={[-0.08, -0.22, 0.18]}>
+            <boxGeometry args={[0.038, 0.026, 0.008]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.38} />
+          </mesh>
+
+          {/* Two Tailored Horn/Gold Blazer Buttons */}
+          {[0.145, 0.078].map((by, i) => (
             <mesh key={i} position={[0, by, 0.186]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.012, 0.012, 0.012, 10]} />
-              <meshStandardMaterial color="#cfa14a" metalness={0.7} roughness={0.35} />
+              <cylinderGeometry args={[0.011, 0.011, 0.01, 12]} />
+              <meshStandardMaterial color="#c99c42" metalness={0.78} roughness={0.28} />
             </mesh>
           ))}
 
           {/* Neck */}
           <mesh position={[0, 0.45, 0.02]}>
-            <cylinderGeometry args={[0.068, 0.078, 0.1, 12]} />
-            <meshStandardMaterial color="#e6bba0" roughness={0.68} />
+            <cylinderGeometry args={[0.068, 0.076, 0.1, 12]} />
+            <meshStandardMaterial color="#e8bea3" roughness={0.64} />
           </mesh>
 
-          {/* Articulated Scholar Head with Silver Hair, Beard & Gold Glasses */}
+          {/* 60-Year-Old Distinguished Head: Salt-and-Pepper Hair, Silver Temples & Trimmed Beard */}
           <group ref={headRef} position={[0, 0.55, 0.04]} rotation={[0.34, 0, 0]}>
             {/* Cranium */}
             <mesh castShadow={!isSoftwareGl}>
               <sphereGeometry args={[0.148, 22, 18]} />
-              <meshStandardMaterial color="#ecc3a8" roughness={0.66} />
+              <meshStandardMaterial color="#eec6ab" roughness={0.62} />
             </mesh>
 
             {/* Ears */}
             {[-0.142, 0.142].map((ex, i) => (
               <mesh key={i} position={[ex, -0.01, 0]} scale={[0.45, 0.85, 0.65]}>
                 <sphereGeometry args={[0.042, 10, 10]} />
-                <meshStandardMaterial color="#e5b89b" roughness={0.68} />
+                <meshStandardMaterial color="#e6ba9e" roughness={0.64} />
               </mesh>
             ))}
 
-            {/* Silver-White Crown & Side Hair */}
-            <mesh position={[0, 0.035, -0.028]} scale={[1.05, 0.98, 1.06]}>
+            {/* Styled Charcoal Salt-and-Pepper Crown Hair + Side-Swept Forelock */}
+            <mesh position={[0, 0.038, -0.026]} scale={[1.05, 0.99, 1.06]}>
               <sphereGeometry args={[0.146, 20, 16]} />
-              <meshStandardMaterial color="#e8edf2" roughness={0.82} />
+              <meshStandardMaterial color="#373f49" roughness={0.74} />
             </mesh>
-            {[-0.125, 0.125].map((hx, i) => (
-              <mesh key={i} position={[hx, 0.01, 0.015]} scale={[0.45, 0.72, 0.85]}>
-                <sphereGeometry args={[0.095, 12, 10]} />
-                <meshStandardMaterial color="#eef2f6" roughness={0.84} />
+            <mesh
+              position={[0.02, 0.118, 0.065]}
+              rotation={[-0.28, 0.12, -0.16]}
+              scale={[1.15, 0.46, 0.82]}
+            >
+              <sphereGeometry args={[0.082, 14, 10]} />
+              <meshStandardMaterial color="#434c58" roughness={0.72} />
+            </mesh>
+
+            {/* Distinguished 60-Year-Old Silver-Grey Temples */}
+            {[-0.126, 0.126].map((hx, i) => (
+              <mesh key={i} position={[hx, 0.012, 0.016]} scale={[0.42, 0.7, 0.82]}>
+                <sphereGeometry args={[0.09, 12, 10]} />
+                <meshStandardMaterial color="#9aa4b2" roughness={0.78} />
               </mesh>
             ))}
 
             {/* Nose */}
             <mesh position={[0, -0.012, 0.148]} rotation={[0.25, 0, 0]}>
               <capsuleGeometry args={[0.02, 0.032, 6, 10]} />
-              <meshStandardMaterial color="#e3b396" roughness={0.64} />
+              <meshStandardMaterial color="#e5b699" roughness={0.62} />
             </mesh>
 
-            {/* Calm Downcast Reading Eyes & Silver Eyebrows */}
+            {/* Attentive Eyes & Salt-and-Pepper Eyebrows */}
             {[-0.052, 0.052].map((ex, i) => (
               <group key={i}>
                 <mesh position={[ex, 0.015, 0.134]}>
                   <sphereGeometry args={[0.014, 10, 10]} />
-                  <meshStandardMaterial color="#263238" roughness={0.35} />
+                  <meshStandardMaterial color="#1e293b" roughness={0.32} />
                 </mesh>
                 <mesh
                   position={[ex, 0.048, 0.136]}
-                  rotation={[0, 0, i === 0 ? 0.08 : -0.08]}
+                  rotation={[0, 0, i === 0 ? 0.06 : -0.06]}
                 >
-                  <boxGeometry args={[0.046, 0.014, 0.018]} />
-                  <meshStandardMaterial color="#f1f5f9" roughness={0.85} />
+                  <boxGeometry args={[0.046, 0.013, 0.018]} />
+                  <meshStandardMaterial color="#464f5b" roughness={0.8} />
                 </mesh>
               </group>
             ))}
 
-            {/* Gold-Rimmed Reading Glasses */}
+            {/* Refined Gold-Rimmed Glasses */}
             <group position={[0, 0.012, 0.148]}>
               {[-0.052, 0.052].map((gx, i) => (
                 <group key={i} position={[gx, 0, 0]}>
                   <mesh>
-                    <torusGeometry args={[0.032, 0.0045, 10, 22]} />
+                    <torusGeometry args={[0.032, 0.0042, 10, 22]} />
                     <meshStandardMaterial
                       ref={i === 0 ? glassesRimLeftRef : glassesRimRightRef}
                       color="#d9ad4f"
@@ -1272,7 +1428,7 @@ function SofaWithReadingScholar({
                     <meshStandardMaterial
                       color="#dbeafe"
                       transparent
-                      opacity={0.28}
+                      opacity={0.25}
                       roughness={0.12}
                     />
                   </mesh>
@@ -1285,58 +1441,89 @@ function SofaWithReadingScholar({
               </mesh>
             </group>
 
-            {/* Full Silver-White Beard & Mustache */}
+            {/* Neatly Trimmed 60-Year-Old Salt-and-Pepper Jawline Beard & Groomed Mustache */}
             <mesh
               ref={beardRef}
-              position={[0, -0.082, 0.085]}
-              scale={[0.92, 1.08, 0.88]}
+              position={[0, -0.068, 0.088]}
+              scale={[0.84, 0.62, 0.76]}
               castShadow={!isSoftwareGl}
             >
-              <sphereGeometry args={[0.118, 18, 14]} />
-              <meshStandardMaterial color="#edf2f7" roughness={0.88} />
+              <sphereGeometry args={[0.112, 18, 14]} />
+              <meshStandardMaterial color="#55606e" roughness={0.82} />
             </mesh>
-            <mesh position={[-0.028, -0.042, 0.142]} rotation={[0, 0, 0.22]}>
-              <capsuleGeometry args={[0.018, 0.042, 6, 10]} />
-              <meshStandardMaterial color="#f8fafc" roughness={0.86} />
+            <mesh position={[-0.025, -0.04, 0.141]} rotation={[0, 0, 0.18]}>
+              <capsuleGeometry args={[0.014, 0.036, 6, 10]} />
+              <meshStandardMaterial color="#647080" roughness={0.8} />
             </mesh>
-            <mesh position={[0.028, -0.042, 0.142]} rotation={[0, 0, -0.22]}>
-              <capsuleGeometry args={[0.018, 0.042, 6, 10]} />
-              <meshStandardMaterial color="#f8fafc" roughness={0.86} />
+            <mesh position={[0.025, -0.04, 0.141]} rotation={[0, 0, -0.18]}>
+              <capsuleGeometry args={[0.014, 0.036, 6, 10]} />
+              <meshStandardMaterial color="#647080" roughness={0.8} />
             </mesh>
           </group>
 
-          {/* Left Arm Holding Book */}
-          <group position={[-0.21, 0.34, 0.02]}>
-            <mesh position={[-0.02, -0.11, 0.06]} rotation={[-0.42, 0, 0.18]} castShadow={!isSoftwareGl}>
-              <capsuleGeometry args={[0.055, 0.18, 8, 12]} />
-              <meshStandardMaterial color="#6e2e2a" roughness={0.88} />
+          {/* Left Suit Sleeve + Crisp White French Cuff + Gold Dress Watch */}
+          <group position={[-0.215, 0.34, 0.02]}>
+            <mesh
+              position={[-0.02, -0.11, 0.06]}
+              rotation={[-0.42, 0, 0.18]}
+              material={suitJacketMat}
+              castShadow={!isSoftwareGl}
+            >
+              <capsuleGeometry args={[0.056, 0.18, 8, 12]} />
             </mesh>
             <group ref={leftArmRef} position={[-0.04, -0.21, 0.14]} rotation={[-0.78, 0.25, -0.24]}>
-              <mesh position={[0, -0.1, 0]} castShadow={!isSoftwareGl}>
-                <capsuleGeometry args={[0.046, 0.17, 8, 12]} />
-                <meshStandardMaterial color="#6e2e2a" roughness={0.88} />
+              <mesh position={[0, -0.092, 0]} material={suitJacketMat} castShadow={!isSoftwareGl}>
+                <capsuleGeometry args={[0.048, 0.155, 8, 12]} />
               </mesh>
-              <mesh position={[0.01, -0.21, 0.01]} scale={[0.9, 1.1, 0.7]}>
+              {/* Crisp White Shirt Cuff + Cufflink */}
+              <mesh position={[0, -0.175, 0]}>
+                <cylinderGeometry args={[0.043, 0.042, 0.028, 14]} />
+                <meshStandardMaterial color="#f8fafc" roughness={0.46} />
+              </mesh>
+              {/* Gold Dress Wristwatch */}
+              <mesh position={[0, -0.168, 0.002]}>
+                <cylinderGeometry args={[0.045, 0.045, 0.012, 16]} />
+                <meshStandardMaterial color="#2a1810" roughness={0.45} />
+              </mesh>
+              <mesh position={[-0.032, -0.168, 0.028]} rotation={[0, -0.5, Math.PI / 2]}>
+                <cylinderGeometry args={[0.016, 0.016, 0.008, 14]} />
+                <meshStandardMaterial color="#d4af37" metalness={0.88} roughness={0.2} />
+              </mesh>
+              {/* Left Hand */}
+              <mesh position={[0.01, -0.215, 0.01]} scale={[0.9, 1.1, 0.7]}>
                 <sphereGeometry args={[0.044, 12, 10]} />
-                <meshStandardMaterial color="#ecc3a8" roughness={0.68} />
+                <meshStandardMaterial color="#eec6ab" roughness={0.64} />
               </mesh>
             </group>
           </group>
 
-          {/* Right Arm Holding Book & Periodically Turning Page */}
-          <group position={[0.21, 0.34, 0.02]}>
-            <mesh position={[0.02, -0.11, 0.06]} rotation={[-0.42, 0, -0.18]} castShadow={!isSoftwareGl}>
-              <capsuleGeometry args={[0.055, 0.18, 8, 12]} />
-              <meshStandardMaterial color="#6e2e2a" roughness={0.88} />
+          {/* Right Suit Sleeve + Crisp White French Cuff & Gold Cufflink */}
+          <group position={[0.215, 0.34, 0.02]}>
+            <mesh
+              position={[0.02, -0.11, 0.06]}
+              rotation={[-0.42, 0, -0.18]}
+              material={suitJacketMat}
+              castShadow={!isSoftwareGl}
+            >
+              <capsuleGeometry args={[0.056, 0.18, 8, 12]} />
             </mesh>
             <group ref={rightArmRef} position={[0.04, -0.21, 0.14]} rotation={[-0.78, -0.25, 0.24]}>
-              <mesh position={[0, -0.1, 0]} castShadow={!isSoftwareGl}>
-                <capsuleGeometry args={[0.046, 0.17, 8, 12]} />
-                <meshStandardMaterial color="#6e2e2a" roughness={0.88} />
+              <mesh position={[0, -0.092, 0]} material={suitJacketMat} castShadow={!isSoftwareGl}>
+                <capsuleGeometry args={[0.048, 0.155, 8, 12]} />
               </mesh>
-              <mesh position={[-0.01, -0.21, 0.01]} scale={[0.9, 1.1, 0.7]}>
+              {/* Crisp White Shirt Cuff + Gold Cufflink */}
+              <mesh position={[0, -0.175, 0]}>
+                <cylinderGeometry args={[0.043, 0.042, 0.028, 14]} />
+                <meshStandardMaterial color="#f8fafc" roughness={0.46} />
+              </mesh>
+              <mesh position={[0.042, -0.175, 0]} rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.006, 0.006, 0.008, 10]} />
+                <meshStandardMaterial color="#d4af37" metalness={0.88} roughness={0.2} />
+              </mesh>
+              {/* Right Hand */}
+              <mesh position={[-0.01, -0.215, 0.01]} scale={[0.9, 1.1, 0.7]}>
                 <sphereGeometry args={[0.044, 12, 10]} />
-                <meshStandardMaterial color="#ecc3a8" roughness={0.68} />
+                <meshStandardMaterial color="#eec6ab" roughness={0.64} />
               </mesh>
             </group>
           </group>
@@ -1874,6 +2061,9 @@ export function OfficeStudyScene({
   lampsOn,
   isConversing,
   isScholarSpeaking,
+  scholarExternalEngaged,
+  scholarLabelDomRef,
+  onScholarPointerChange,
   onHoverStudyItem,
   tooltipDomRef,
   onSelectOfficeView,
@@ -1893,6 +2083,28 @@ export function OfficeStudyScene({
 
   const nightMix = useRef(theme === 'dark' ? 1 : 0);
   const hoveredAnchorRef = useRef<HoveredAnchor | null>(null);
+  const scholarAnchorRef = useRef<THREE.Object3D | null>(null);
+  const scholarRaycastRef = useRef(false);
+  const scholarMoveNearRef = useRef(false);
+  const prevReportedScholarRef = useRef(false);
+  const moveNearTimerRef = useRef<number | null>(null);
+  const lastPointerNdcRef = useRef({ x: 99, y: 99 });
+
+  const syncScholarEngaged = useCallback(() => {
+    const next = scholarRaycastRef.current || scholarMoveNearRef.current;
+    if (prevReportedScholarRef.current !== next) {
+      prevReportedScholarRef.current = next;
+      onScholarPointerChange(next);
+    }
+  }, [onScholarPointerChange]);
+
+  const handleScholarRaycastHoverChange = useCallback(
+    (hovered: boolean) => {
+      scholarRaycastRef.current = hovered;
+      syncScholarEngaged();
+    },
+    [syncScholarEngaged],
+  );
 
   const handleStartHover = useCallback(
     (
@@ -1940,10 +2152,14 @@ export function OfficeStudyScene({
   useEffect(() => {
     return () => {
       hoveredAnchorRef.current = null;
+      if (moveNearTimerRef.current !== null) {
+        window.clearTimeout(moveNearTimerRef.current);
+      }
       document.body.style.cursor = '';
       onHoverStudyItem(null);
+      onScholarPointerChange(false);
     };
-  }, [onHoverStudyItem]);
+  }, [onHoverStudyItem, onScholarPointerChange]);
 
   // Shared wall material instance updated smoothly in useFrame
   const wallMaterial = useMemo(
@@ -1985,6 +2201,54 @@ export function OfficeStudyScene({
         state.size.height,
       );
       tooltipDomRef.current.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+    }
+
+    // Project Talking Icon Label directly above the person reading the book + track pointer movement near him
+    if (scholarAnchorRef.current && scholarLabelDomRef.current) {
+      const labelPos = projectScholarLabelToScreen(
+        scholarAnchorRef.current,
+        1.44,
+        state.camera,
+        state.size.width,
+        state.size.height,
+      );
+
+      if (labelPos.inView) {
+        scholarLabelDomRef.current.style.transform = `translate3d(${labelPos.x}px, ${labelPos.y}px, 0)`;
+
+        const dxNdc = state.pointer.x - lastPointerNdcRef.current.x;
+        const dyNdc = state.pointer.y - lastPointerNdcRef.current.y;
+        if (dxNdc * dxNdc + dyNdc * dyNdc > 0.00001) {
+          lastPointerNdcRef.current.x = state.pointer.x;
+          lastPointerNdcRef.current.y = state.pointer.y;
+
+          const ptrX = (state.pointer.x * 0.5 + 0.5) * state.size.width;
+          const ptrY = (-state.pointer.y * 0.5 + 0.5) * state.size.height;
+          const distToScholar = Math.hypot(ptrX - labelPos.x, ptrY - (labelPos.y + 62));
+
+          if (distToScholar < 112) {
+            if (moveNearTimerRef.current !== null) {
+              window.clearTimeout(moveNearTimerRef.current);
+            }
+            scholarMoveNearRef.current = true;
+            syncScholarEngaged();
+            moveNearTimerRef.current = window.setTimeout(() => {
+              moveNearTimerRef.current = null;
+              scholarMoveNearRef.current = false;
+              syncScholarEngaged();
+            }, 900);
+          } else if (scholarMoveNearRef.current && !scholarRaycastRef.current) {
+            if (moveNearTimerRef.current !== null) {
+              window.clearTimeout(moveNearTimerRef.current);
+              moveNearTimerRef.current = null;
+            }
+            scholarMoveNearRef.current = false;
+            syncScholarEngaged();
+          }
+        }
+      } else {
+        scholarLabelDomRef.current.style.transform = 'translate3d(-9999px, -9999px, 0)';
+      }
     }
   });
 
@@ -2137,7 +2401,7 @@ export function OfficeStudyScene({
       <StudyPottedPlant position={[-2.95, 0, -3.18]} shadowTex={shadowTex} />
       <StudyPottedPlant position={[4.55, 0, -2.95]} shadowTex={shadowTex} />
 
-      {/* ==================== 3. HERO READING SOFA, INTERACTIVE OLD MAN & SLEEPING ORANGE CAT ==================== */}
+      {/* ==================== 3. HERO READING SOFA, INTERACTIVE SCHOLAR & SLEEPING ORANGE CAT ==================== */}
       <SofaWithReadingScholar
         position={[-1.18, 0, -0.62]}
         rotation={[0, 0.24, 0]}
@@ -2147,8 +2411,9 @@ export function OfficeStudyScene({
         theme={theme}
         isConversing={isConversing}
         isScholarSpeaking={isScholarSpeaking}
-        onStartHover={handleStartHover}
-        onEndHover={handleEndHover}
+        scholarExternalEngaged={scholarExternalEngaged}
+        scholarAnchorRef={scholarAnchorRef}
+        onScholarRaycastHoverChange={handleScholarRaycastHoverChange}
         onOpenScholarChat={onOpenScholarChat}
       />
 

@@ -415,7 +415,7 @@ export function ScholarChatModal({
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               disabled={isLoading}
-              placeholder="Ask the old man a question..."
+              placeholder="Ask Prof. Linnea a question..."
               aria-label="Ask Professor Arthur Linnea a question"
               className="glass-input flex-1 px-3.5 py-2.5 rounded-xl text-sm disabled:opacity-60"
             />

@@ -13,6 +13,7 @@ import { BotanicalCursor } from './components/BotanicalCursor';
 import { WelcomeModal } from './components/WelcomeModal';
 import { OfficeSidebar } from './components/OfficeSidebar';
 import { StudyHoverTooltip } from './components/StudyHoverTooltip';
+import { ScholarTalkLabel } from './components/ScholarTalkLabel';
 import { ScholarChatModal } from './components/ScholarChatModal';
 import { isSoftwareGl } from './utils/webgl';
 import type {
@@ -45,9 +46,12 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [scholarChatOpen, setScholarChatOpen] = useState(false);
   const [scholarSpeaking, setScholarSpeaking] = useState(false);
+  const [scholarPointerEngaged, setScholarPointerEngaged] = useState(false);
+  const [scholarLabelEngaged, setScholarLabelEngaged] = useState(false);
   const [hoveredStudyItem, setHoveredStudyItem] =
     useState<HoveredStudyItem | null>(null);
   const tooltipDomRef = useRef<HTMLDivElement | null>(null);
+  const scholarLabelDomRef = useRef<HTMLDivElement | null>(null);
 
   // Sync root classes for CSS variables & software-GL optimization
   useEffect(() => {
@@ -133,6 +137,8 @@ export default function App() {
     setSidebarOpen(false);
     setScholarChatOpen(false);
     setScholarSpeaking(false);
+    setScholarPointerEngaged(false);
+    setScholarLabelEngaged(false);
     setSceneState((prev) => ({
       ...prev,
       isAuthenticated: true,
@@ -150,6 +156,8 @@ export default function App() {
     setSidebarOpen(false);
     setScholarChatOpen(false);
     setScholarSpeaking(false);
+    setScholarPointerEngaged(false);
+    setScholarLabelEngaged(false);
     setHoveredStudyItem(null);
     setSceneState((prev) => ({
       ...prev,
@@ -158,6 +166,15 @@ export default function App() {
     }));
   }, []);
 
+  const isCameraFocusedOnScholar = sceneState.cameraPreset === 'office-sofa';
+  const showScholarTalkLabel =
+    !showWelcomeModal &&
+    !hoveredStudyItem &&
+    (scholarPointerEngaged ||
+      scholarLabelEngaged ||
+      isCameraFocusedOnScholar ||
+      scholarChatOpen);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       {/* Full-Bleed 3D React Three Fiber Canvas (Garden Login <-> Post-Login 3D Office Study) */}
@@ -165,6 +182,9 @@ export default function App() {
         state={sceneState}
         isConversing={scholarChatOpen}
         isScholarSpeaking={scholarSpeaking}
+        scholarExternalEngaged={scholarLabelEngaged || isCameraFocusedOnScholar}
+        scholarLabelDomRef={scholarLabelDomRef}
+        onScholarPointerChange={setScholarPointerEngaged}
         onHoverStudyItem={setHoveredStudyItem}
         tooltipDomRef={tooltipDomRef}
         onSelectOfficeView={handleSelectOfficeCamera}
@@ -235,10 +255,21 @@ export default function App() {
             <ThemeToggle theme={sceneState.theme} onSelectTheme={handleSelectTheme} />
           </div>
 
-          {/* Floating 3D-Projected Hover Tooltip for Bookshelf Volumes, Computer Screen & Old Scholar */}
+          {/* Floating 3D-Projected Hover Tooltip for Bookshelf Volumes & Computer Screen */}
           <StudyHoverTooltip
             item={showWelcomeModal ? null : hoveredStudyItem}
             anchorRef={tooltipDomRef}
+          />
+
+          {/* Floating 3D-Projected Talking Icon Label on Hover / Move / Focus over the Reading Scholar */}
+          <ScholarTalkLabel
+            active={showScholarTalkLabel}
+            highlighted={scholarPointerEngaged || scholarLabelEngaged}
+            isConversing={scholarChatOpen}
+            isScholarSpeaking={scholarSpeaking}
+            anchorRef={scholarLabelDomRef}
+            onOpenChat={handleOpenScholarChat}
+            onLabelEngageChange={setScholarLabelEngaged}
           />
 
           {/* Transparent Conversation Modal with Professor Arthur Linnea */}
@@ -391,7 +422,10 @@ export default function App() {
       {/* Custom Framer Motion Botanical Cursor & Subtle Particle Trail */}
       <BotanicalCursor
         theme={sceneState.theme}
-        externalInteractive={Boolean(hoveredStudyItem && !showWelcomeModal)}
+        externalInteractive={Boolean(
+          (hoveredStudyItem || scholarPointerEngaged || scholarLabelEngaged) &&
+            !showWelcomeModal,
+        )}
       />
     </div>
   );

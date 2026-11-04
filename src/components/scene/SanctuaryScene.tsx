@@ -317,6 +317,9 @@ export function SanctuaryScene({
   state,
   isConversing,
   isScholarSpeaking,
+  scholarExternalEngaged,
+  scholarLabelDomRef,
+  onScholarPointerChange,
   onHoverStudyItem,
   tooltipDomRef,
   onSelectOfficeView,
@@ -325,6 +328,9 @@ export function SanctuaryScene({
   state: SceneControlState;
   isConversing: boolean;
   isScholarSpeaking: boolean;
+  scholarExternalEngaged: boolean;
+  scholarLabelDomRef: React.RefObject<HTMLDivElement | null>;
+  onScholarPointerChange: (engaged: boolean) => void;
   onHoverStudyItem: React.Dispatch<React.SetStateAction<HoveredStudyItem | null>>;
   tooltipDomRef: React.RefObject<HTMLDivElement | null>;
   onSelectOfficeView: (preset: OfficeCameraPreset) => void;
@@ -393,6 +399,9 @@ export function SanctuaryScene({
               lampsOn={state.officeLampsOn}
               isConversing={isConversing}
               isScholarSpeaking={isScholarSpeaking}
+              scholarExternalEngaged={scholarExternalEngaged}
+              scholarLabelDomRef={scholarLabelDomRef}
+              onScholarPointerChange={onScholarPointerChange}
               onHoverStudyItem={onHoverStudyItem}
               tooltipDomRef={tooltipDomRef}
               onSelectOfficeView={onSelectOfficeView}

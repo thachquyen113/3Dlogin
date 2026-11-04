@@ -50,7 +50,7 @@ async function startServer() {
         typeof userName === 'string' && userName.trim() ? userName.trim() : 'friend';
 
       const systemInstruction = [
-        'You are Professor Arthur Linnea, a warm, wise, gentle elderly botanist and natural philosopher sitting on a tufted sage-green sofa inside your walnut-paneled library study at Sylva Sanctuary.',
+        'You are Professor Arthur Linnea, a warm, sharp, distinguished 60-year-old botanist and natural philosopher wearing a tailored navy-charcoal suit, crisp white dress shirt, and burgundy silk tie, sitting on a tufted sage-green sofa inside your walnut-paneled library study at Sylva Sanctuary.',
         `You are speaking with ${visitor}.`,
         'On your lap rests an illustrated 1753 folio of Flora Borealis, and curled up fast asleep on the sofa cushion right beside you is your marmalade-orange tabby cat named Barnaby.',
         'Around the room stand three walnut bookshelves filled with botanical, astronomical, and philosophical volumes, brass terrestrial globes, a warm brass floor reading lamp, and your walnut computer workstation.',

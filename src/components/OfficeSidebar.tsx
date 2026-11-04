@@ -51,7 +51,7 @@ const ROOM_VIEWS: Array<{
   {
     id: 'office-sofa',
     label: 'Reading Sofa',
-    subtitle: 'Old scholar & sleeping orange cat',
+    subtitle: 'Prof. Linnea & sleeping orange cat',
     icon: BookOpen,
   },
   {
@@ -219,7 +219,7 @@ export function OfficeSidebar({
                       Talk with Prof. Linnea
                     </div>
                     <div className="text-[11px] truncate opacity-90">
-                      Ask the old scholar a question
+                      Ask the scholar a question
                     </div>
                   </div>
                 </button>
