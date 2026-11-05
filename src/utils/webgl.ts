@@ -543,3 +543,267 @@ export function getBookPageTexture(maxAnisotropy = 4): THREE.CanvasTexture {
   _bookPageTex = tex;
   return tex;
 }
+
+/**
+ * Procedural Dark Charcoal-Navy Pinstripe Suit Wool Texture (SRGBColorSpace).
+ */
+let _pinstripeSuitTex: THREE.CanvasTexture | null = null;
+export function getPinstripeSuitTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  if (_pinstripeSuitTex) return _pinstripeSuitTex;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  // Deep charcoal-navy worsted wool base
+  ctx.fillStyle = '#181e2a';
+  ctx.fillRect(0, 0, size, size);
+
+  // Subtle diagonal twill weave grain
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+  ctx.lineWidth = 1;
+  for (let i = -size; i < size * 2; i += 4) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i - size, size);
+    ctx.stroke();
+  }
+
+  // Fine muted slate-silver vertical pinstripes
+  for (let x = 8; x < size; x += 16) {
+    ctx.fillStyle = 'rgba(168, 184, 208, 0.15)';
+    ctx.fillRect(x, 0, 1.2, size);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  tex.anisotropy = maxAnisotropy;
+  tex.needsUpdate = true;
+  _pinstripeSuitTex = tex;
+  return tex;
+}
+
+/**
+ * Procedural Light-Blue & White Finely Striped Dress Shirt Texture (SRGBColorSpace).
+ */
+let _stripedShirtTex: THREE.CanvasTexture | null = null;
+export function getStripedDressShirtTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  if (_stripedShirtTex) return _stripedShirtTex;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  // Crisp soft white poplin base
+  ctx.fillStyle = '#f4f8fc';
+  ctx.fillRect(0, 0, size, size);
+
+  // Fine sky-slate vertical dress shirt stripes
+  for (let x = 0; x < size; x += 8) {
+    ctx.fillStyle = '#bfd2ea';
+    ctx.fillRect(x, 0, 3, size);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2.5, 2.5);
+  tex.anisotropy = maxAnisotropy;
+  tex.needsUpdate = true;
+  _stripedShirtTex = tex;
+  return tex;
+}
+
+/**
+ * Procedural Stacked Cream Paper Block Edge Texture for 3D Hardcover Volumes.
+ */
+let _bookEdgePagesTex: THREE.CanvasTexture | null = null;
+export function getBookEdgePagesTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  if (_bookEdgePagesTex) return _bookEdgePagesTex;
+  const w = 128;
+  const h = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#f6efe0';
+  ctx.fillRect(0, 0, w, h);
+
+  for (let x = 0; x < w; x += 2) {
+    ctx.fillStyle = x % 4 === 0 ? 'rgba(168, 145, 112, 0.22)' : 'rgba(255, 252, 245, 0.5)';
+    ctx.fillRect(x, 0, 1, h);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = maxAnisotropy;
+  tex.needsUpdate = true;
+  _bookEdgePagesTex = tex;
+  return tex;
+}
+
+/**
+ * Procedural Vertical Japanese Hardcover Spine Texture (SRGBColorSpace).
+ */
+const _bookSpineCache = new Map<string, THREE.CanvasTexture>();
+export function getBookSpineTexture(
+  bookKey: string,
+  spineColor: string,
+  accentColor: string,
+  shortLabel: string,
+  maxAnisotropy = 4,
+): THREE.CanvasTexture {
+  const existing = _bookSpineCache.get(bookKey);
+  if (existing) return existing;
+
+  const w = 96;
+  const h = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = spineColor;
+  ctx.fillRect(0, 0, w, h);
+
+  // Subtle curved spine shading on left & right edges
+  const grad = ctx.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0, 'rgba(0,0,0,0.28)');
+  grad.addColorStop(0.22, 'rgba(255,255,255,0.08)');
+  grad.addColorStop(0.78, 'rgba(255,255,255,0.04)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.26)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Top & bottom publisher bands
+  ctx.fillStyle = accentColor;
+  ctx.fillRect(10, 26, w - 20, 6);
+  ctx.fillRect(10, h - 46, w - 20, 18);
+
+  // Vertical Japanese spine lettering
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 28px "Plus Jakarta Sans", "Hiragino Sans", "Noto Sans JP", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const chars = Array.from(shortLabel).slice(0, 10);
+  const startY = 82;
+  const stepY = 34;
+  chars.forEach((ch, idx) => {
+    ctx.fillText(ch, w / 2, startY + idx * stepY);
+  });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAnisotropy;
+  tex.needsUpdate = true;
+  _bookSpineCache.set(bookKey, tex);
+  return tex;
+}
+
+/**
+ * High-Resolution Book Cover Texture with immediate procedural jacket fallback
+ * and seamless upgrade once the cover JPG finishes loading (zero blank frames, zero CORS crashes).
+ */
+const _bookCoverCache = new Map<string, THREE.CanvasTexture>();
+const _bookCoverListeners = new Map<string, Set<() => void>>();
+
+export function getBookCoverTexture(
+  bookKey: string,
+  localUrl: string,
+  remoteUrl: string,
+  spineColor: string,
+  backColor: string,
+  shortLabel: string,
+  maxAnisotropy = 4,
+  onReady?: () => void,
+): THREE.CanvasTexture {
+  if (onReady) {
+    let set = _bookCoverListeners.get(bookKey);
+    if (!set) {
+      set = new Set();
+      _bookCoverListeners.set(bookKey, set);
+    }
+    set.add(onReady);
+  }
+
+  const cached = _bookCoverCache.get(bookKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Power-of-two high-DPI canvas (512 x 768 crisp aspect ratio; mipmaps enabled)
+  const cw = 512;
+  const ch = 768;
+  const canvas = document.createElement('canvas');
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext('2d')!;
+
+  // 1. Immediate crisp styled cover jacket fallback while photo loads
+  ctx.fillStyle = spineColor;
+  ctx.fillRect(0, 0, cw, ch);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(36, 48, cw - 72, ch * 0.56);
+  ctx.fillStyle = backColor;
+  ctx.fillRect(0, ch * 0.68, cw, ch * 0.32);
+
+  ctx.fillStyle = spineColor;
+  ctx.font = '700 44px "Plus Jakarta Sans", "Hiragino Sans", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(shortLabel, cw / 2, ch * 0.34);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = maxAnisotropy;
+  tex.needsUpdate = true;
+  _bookCoverCache.set(bookKey, tex);
+
+  // 2. Load real cover artwork (same-origin local asset first, remote fallback second)
+  if (typeof Image !== 'undefined') {
+    const paintCoverImage = (img: HTMLImageElement) => {
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+      // Subtle book-hinge crease highlight on left edge for physical realism
+      const hingeGrad = ctx.createLinearGradient(0, 0, 18, 0);
+      hingeGrad.addColorStop(0, 'rgba(0, 0, 0, 0.22)');
+      hingeGrad.addColorStop(0.55, 'rgba(255, 255, 255, 0.14)');
+      hingeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = hingeGrad;
+      ctx.fillRect(0, 0, 18, ch);
+
+      tex.needsUpdate = true;
+      const listeners = _bookCoverListeners.get(bookKey);
+      if (listeners) {
+        listeners.forEach((cb) => cb());
+      }
+    };
+
+    const primaryImg = new Image();
+    primaryImg.decoding = 'async';
+    primaryImg.onload = () => paintCoverImage(primaryImg);
+    primaryImg.onerror = () => {
+      const fallbackImg = new Image();
+      fallbackImg.crossOrigin = 'anonymous';
+      fallbackImg.referrerPolicy = 'no-referrer';
+      fallbackImg.onload = () => paintCoverImage(fallbackImg);
+      fallbackImg.src = remoteUrl;
+    };
+    primaryImg.src = localUrl;
+  }
+
+  return tex;
+}
+
+

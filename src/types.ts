@@ -9,6 +9,25 @@ export type OfficeCameraPreset =
 
 export type CameraPreset = GardenCameraPreset | OfficeCameraPreset;
 
+export type FeaturedBookId =
+  | 'Book_PDCA'
+  | 'Book_Business'
+  | 'Book_AI'
+  | 'Book_Education';
+
+export type BookShelfSortMode = 'curated' | 'category' | 'title' | 'color';
+
+export interface CameraVector3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface CustomCameraFocus {
+  cameraPos: CameraVector3;
+  targetPos: CameraVector3;
+}
+
 export type AuthView = 'signin' | 'signup' | 'forgot';
 
 export interface AuthenticatedUser {
@@ -24,6 +43,8 @@ export interface HoveredStudyItem {
   subtitle: string;
   detail: string;
   accentColor: string;
+  coverUrl?: string;
+  remoteCoverUrl?: string;
   initialX: number;
   initialY: number;
 }

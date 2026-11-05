@@ -1,4 +1,5 @@
 import {
+  ArrowUpDown,
   BookOpen,
   Compass,
   Lamp,
@@ -13,9 +14,16 @@ import {
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import {
+  computeFeaturedBookCameraFocus,
+  getSortedFeaturedBooks,
+} from '../data/booksData';
 import type {
   AuthenticatedUser,
+  BookShelfSortMode,
   CameraPreset,
+  CustomCameraFocus,
+  FeaturedBookId,
   OfficeCameraPreset,
   ThemeMode,
 } from '../types';
@@ -28,7 +36,11 @@ interface OfficeSidebarProps {
   theme: ThemeMode;
   onSelectTheme: (theme: ThemeMode) => void;
   cameraPreset: CameraPreset;
+  shelfSortMode: BookShelfSortMode;
+  selectedBookId: FeaturedBookId | null;
   onSelectCamera: (preset: OfficeCameraPreset) => void;
+  onChangeSortMode: (mode: BookShelfSortMode) => void;
+  onSelectFeaturedBook: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
   lampsOn: boolean;
   onToggleLamps: () => void;
   onOpenScholarChat: () => void;
@@ -76,13 +88,18 @@ export function OfficeSidebar({
   theme,
   onSelectTheme,
   cameraPreset,
+  shelfSortMode,
+  selectedBookId,
   onSelectCamera,
+  onChangeSortMode,
+  onSelectFeaturedBook,
   lampsOn,
   onToggleLamps,
   onOpenScholarChat,
   onReopenWelcome,
   onSignOut,
 }: OfficeSidebarProps) {
+  const sortedBooks = getSortedFeaturedBooks(shelfSortMode);
   return (
     <>
       {/* Top-Left Sidebar Menu Trigger Icon */}
@@ -151,7 +168,7 @@ export function OfficeSidebar({
                 <nav className="space-y-1.5" aria-label="3D Office Viewpoints">
                   {ROOM_VIEWS.map((item) => {
                     const Icon = item.icon;
-                    const active = cameraPreset === item.id;
+                    const active = cameraPreset === item.id && !selectedBookId;
                     return (
                       <button
                         key={item.id}
@@ -198,6 +215,119 @@ export function OfficeSidebar({
                     );
                   })}
                 </nav>
+              </div>
+
+              {/* Featured Cover Books & Shelf Sort */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <p
+                    className="text-xs font-semibold"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Featured Shelf Covers
+                  </p>
+                  <span
+                    className="flex items-center gap-1 text-[11px]"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span>Sort</span>
+                  </span>
+                </div>
+
+                {/* Segmented Sort Control */}
+                <div
+                  className="grid grid-cols-4 gap-1 p-1 rounded-xl"
+                  style={{
+                    backgroundColor: 'var(--bg-glass-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  {(
+                    [
+                      { id: 'curated', label: 'Default' },
+                      { id: 'category', label: 'Topic' },
+                      { id: 'title', label: 'Title' },
+                      { id: 'color', label: 'Color' },
+                    ] as const
+                  ).map((opt) => {
+                    const active = shelfSortMode === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onChangeSortMode(opt.id)}
+                        className="py-1 px-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap truncate"
+                        style={{
+                          backgroundColor: active
+                            ? 'var(--accent-primary)'
+                            : 'transparent',
+                          color: active
+                            ? 'var(--text-on-accent)'
+                            : 'var(--text-secondary)',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Sorted Featured Book Items */}
+                <div className="space-y-1.5">
+                  {sortedBooks.map((book, idx) => {
+                    const active = selectedBookId === book.id;
+                    return (
+                      <button
+                        key={book.id}
+                        type="button"
+                        onClick={() =>
+                          onSelectFeaturedBook(
+                            book.id,
+                            computeFeaturedBookCameraFocus(idx),
+                          )
+                        }
+                        className="w-full px-3 py-2 rounded-xl flex items-center gap-2.5 text-left transition-colors cursor-pointer"
+                        style={{
+                          backgroundColor: active
+                            ? 'var(--accent-primary)'
+                            : 'var(--bg-glass-subtle)',
+                          color: active
+                            ? 'var(--text-on-accent)'
+                            : 'var(--text-primary)',
+                          border: active
+                            ? '1px solid transparent'
+                            : '1px solid var(--border-subtle)',
+                        }}
+                      >
+                        <BookOpen
+                          className="w-3.5 h-3.5 shrink-0"
+                          style={{
+                            color: active
+                              ? 'var(--text-on-accent)'
+                              : book.accentColor,
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold truncate">
+                            {book.title}
+                          </div>
+                          <div
+                            className="text-[11px] truncate"
+                            style={{
+                              color: active
+                                ? 'var(--text-on-accent)'
+                                : 'var(--text-secondary)',
+                              opacity: active ? 0.88 : 1,
+                            }}
+                          >
+                            {book.category}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Scholar Conversation Action */}

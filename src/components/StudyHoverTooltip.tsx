@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BookOpen, MessageCircle, Monitor } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { HoveredStudyItem } from '../types';
@@ -6,6 +6,57 @@ import type { HoveredStudyItem } from '../types';
 interface StudyHoverTooltipProps {
   item: HoveredStudyItem | null;
   anchorRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function ResilientCoverThumb({
+  coverUrl,
+  remoteCoverUrl,
+  title,
+  accentColor,
+}: {
+  coverUrl: string;
+  remoteCoverUrl?: string;
+  title: string;
+  accentColor: string;
+}) {
+  const [src, setSrc] = useState(coverUrl);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setSrc(coverUrl);
+    setFailed(false);
+  }, [coverUrl]);
+
+  if (failed) {
+    return (
+      <div
+        className="w-12 h-17 rounded-lg shrink-0 flex items-center justify-center p-1 text-center"
+        style={{
+          background: `linear-gradient(150deg, ${accentColor}, #1e293b)`,
+          color: '#ffffff',
+        }}
+      >
+        <BookOpen className="w-4 h-4 opacity-90" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={title}
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (remoteCoverUrl && src !== remoteCoverUrl) {
+          setSrc(remoteCoverUrl);
+        } else {
+          setFailed(true);
+        }
+      }}
+      className="w-12 h-17 rounded-lg object-cover shrink-0 shadow-sm"
+      style={{ border: '1px solid var(--border-subtle)' }}
+    />
+  );
 }
 
 export function StudyHoverTooltip({ item, anchorRef }: StudyHoverTooltipProps) {
@@ -29,7 +80,9 @@ export function StudyHoverTooltip({ item, anchorRef }: StudyHoverTooltipProps) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 4 }}
               transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-              className="glass-card-surface relative w-[248px] rounded-2xl px-3.5 py-3 space-y-1.5"
+              className={`glass-card-surface relative rounded-2xl px-3.5 py-3 space-y-1.5 ${
+                item.coverUrl ? 'w-[292px]' : 'w-[248px]'
+              }`}
             >
               {/* Top subtle accent hairline */}
               <div
@@ -66,20 +119,32 @@ export function StudyHoverTooltip({ item, anchorRef }: StudyHoverTooltipProps) {
                 </span>
               </div>
 
-              {/* Primary title */}
-              <div
-                className="font-display text-sm font-semibold leading-snug"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                {item.title}
-              </div>
+              <div className="flex items-start gap-3">
+                {item.coverUrl && (
+                  <ResilientCoverThumb
+                    coverUrl={item.coverUrl}
+                    remoteCoverUrl={item.remoteCoverUrl}
+                    title={item.title}
+                    accentColor={item.accentColor}
+                  />
+                )}
+                <div className="min-w-0 flex-1 space-y-1">
+                  {/* Primary title */}
+                  <div
+                    className="font-display text-sm font-semibold leading-snug line-clamp-2"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    {item.title}
+                  </div>
 
-              {/* Author / System subtitle */}
-              <div
-                className="text-xs font-medium leading-snug"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {item.subtitle}
+                  {/* Author / System subtitle */}
+                  <div
+                    className="text-xs font-medium leading-snug truncate"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    {item.subtitle}
+                  </div>
+                </div>
               </div>
 
               {/* Detail & click hint */}

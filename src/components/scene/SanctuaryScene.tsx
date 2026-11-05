@@ -9,7 +9,10 @@ import { GardenFauna } from './GardenFauna';
 import { CelestialSky } from './CelestialSky';
 import { OfficeStudyScene } from './OfficeStudyScene';
 import type {
+  BookShelfSortMode,
   CameraPreset,
+  CustomCameraFocus,
+  FeaturedBookId,
   HoveredStudyItem,
   OfficeCameraPreset,
   SceneControlState,
@@ -69,8 +72,8 @@ const CAMERA_PRESETS: Record<
     look: [2.38, 1.08, -0.62],
   },
   'office-books': {
-    pos: [-0.65, 1.92, 2.65],
-    look: [1.45, 1.55, -3.35],
+    pos: [2.22, 1.66, -1.32],
+    look: [2.3, 1.56, -3.52],
   },
 };
 
@@ -155,11 +158,13 @@ function SoftwareGlPacer() {
 function LightingAndCameraRig({
   theme,
   cameraPreset,
+  customCameraFocus,
   isAuthenticated,
   isConversing,
 }: {
   theme: SceneControlState['theme'];
   cameraPreset: CameraPreset;
+  customCameraFocus: CustomCameraFocus | null;
   isAuthenticated: boolean;
   isConversing: boolean;
 }) {
@@ -246,9 +251,12 @@ function LightingAndCameraRig({
       rimLightRef.current.intensity = THREE.MathUtils.lerp(0.55, 0.8, nm);
     }
 
-    // Damped Camera Choreography + Subtle Cursor Parallax + Conversation Framing
+    // Damped Camera Choreography + Subtle Cursor Parallax + Book / Conversation Framing
     const shouldFrameConversation =
-      isAuthenticated && isConversing && cameraPreset === 'office-sofa';
+      isAuthenticated &&
+      isConversing &&
+      !customCameraFocus &&
+      cameraPreset === 'office-sofa';
     converseCamMix.current = THREE.MathUtils.damp(
       converseCamMix.current,
       shouldFrameConversation ? 1 : 0,
@@ -257,23 +265,38 @@ function LightingAndCameraRig({
     );
     const cm = converseCamMix.current;
 
-    const preset = CAMERA_PRESETS[cameraPreset];
-    const parallaxScale = isAuthenticated ? 0.55 : 1.0;
-    const parallaxX = pointer.x * 0.32 * parallaxScale;
-    const parallaxY = pointer.y * 0.18 * parallaxScale;
+    if (isAuthenticated && customCameraFocus) {
+      const parallaxX = pointer.x * 0.06;
+      const parallaxY = pointer.y * 0.04;
+      _targetCamPos.set(
+        customCameraFocus.cameraPos.x + parallaxX,
+        customCameraFocus.cameraPos.y + parallaxY,
+        customCameraFocus.cameraPos.z,
+      );
+      _targetLookAt.set(
+        customCameraFocus.targetPos.x + parallaxX * 0.25,
+        customCameraFocus.targetPos.y + parallaxY * 0.2,
+        customCameraFocus.targetPos.z,
+      );
+    } else {
+      const preset = CAMERA_PRESETS[cameraPreset];
+      const parallaxScale = isAuthenticated ? 0.45 : 1.0;
+      const parallaxX = pointer.x * 0.32 * parallaxScale;
+      const parallaxY = pointer.y * 0.18 * parallaxScale;
 
-    _targetCamPos.set(
-      preset.pos[0] + parallaxX + cm * 0.42,
-      preset.pos[1] + parallaxY,
-      preset.pos[2] + cm * 0.24,
-    );
-    _targetLookAt.set(
-      preset.look[0] + parallaxX * 0.35 + cm * 0.54,
-      preset.look[1] + parallaxY * 0.25 + cm * 0.04,
-      preset.look[2],
-    );
+      _targetCamPos.set(
+        preset.pos[0] + parallaxX + cm * 0.42,
+        preset.pos[1] + parallaxY,
+        preset.pos[2] + cm * 0.24,
+      );
+      _targetLookAt.set(
+        preset.look[0] + parallaxX * 0.35 + cm * 0.54,
+        preset.look[1] + parallaxY * 0.25 + cm * 0.04,
+        preset.look[2],
+      );
+    }
 
-    const camEase = 1 - Math.exp(-3.4 * dt);
+    const camEase = 1 - Math.exp(-3.6 * dt);
     camera.position.lerp(_targetCamPos, camEase);
     currentLookAt.current.lerp(_targetLookAt, camEase);
     camera.lookAt(currentLookAt.current);
@@ -315,6 +338,9 @@ function LightingAndCameraRig({
 
 export function SanctuaryScene({
   state,
+  shelfSortMode,
+  selectedBookId,
+  customCameraFocus,
   isConversing,
   isScholarSpeaking,
   scholarExternalEngaged,
@@ -323,9 +349,13 @@ export function SanctuaryScene({
   onHoverStudyItem,
   tooltipDomRef,
   onSelectOfficeView,
+  onSelectFeaturedBook,
   onOpenScholarChat,
 }: {
   state: SceneControlState;
+  shelfSortMode: BookShelfSortMode;
+  selectedBookId: FeaturedBookId | null;
+  customCameraFocus: CustomCameraFocus | null;
   isConversing: boolean;
   isScholarSpeaking: boolean;
   scholarExternalEngaged: boolean;
@@ -334,6 +364,7 @@ export function SanctuaryScene({
   onHoverStudyItem: React.Dispatch<React.SetStateAction<HoveredStudyItem | null>>;
   tooltipDomRef: React.RefObject<HTMLDivElement | null>;
   onSelectOfficeView: (preset: OfficeCameraPreset) => void;
+  onSelectFeaturedBook: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
   onOpenScholarChat: () => void;
 }) {
   const [contextLost, setContextLost] = useState(false);
@@ -382,6 +413,7 @@ export function SanctuaryScene({
           <LightingAndCameraRig
             theme={state.theme}
             cameraPreset={state.cameraPreset}
+            customCameraFocus={customCameraFocus}
             isAuthenticated={state.isAuthenticated}
             isConversing={isConversing}
           />
@@ -397,6 +429,8 @@ export function SanctuaryScene({
             <OfficeStudyScene
               theme={state.theme}
               lampsOn={state.officeLampsOn}
+              shelfSortMode={shelfSortMode}
+              selectedBookId={selectedBookId}
               isConversing={isConversing}
               isScholarSpeaking={isScholarSpeaking}
               scholarExternalEngaged={scholarExternalEngaged}
@@ -405,6 +439,7 @@ export function SanctuaryScene({
               onHoverStudyItem={onHoverStudyItem}
               tooltipDomRef={tooltipDomRef}
               onSelectOfficeView={onSelectOfficeView}
+              onSelectFeaturedBook={onSelectFeaturedBook}
               onOpenScholarChat={onOpenScholarChat}
             />
           ) : (

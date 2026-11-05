@@ -14,6 +14,8 @@
   --bg-sidebar-glass-fallback: rgba(252, 248, 240, 0.78);
   --bg-chat-modal-glass: rgba(255, 251, 244, 0.34);
   --bg-chat-modal-glass-fallback: rgba(252, 248, 240, 0.8);
+  --bg-chat-modal-fullscreen: rgba(255, 252, 246, 0.62);
+  --bg-chat-modal-fullscreen-fallback: rgba(252, 249, 242, 0.9);
   --bg-chat-bubble-scholar: rgba(255, 253, 249, 0.52);
   --bg-glass-subtle: rgba(255, 255, 255, 0.44);
   --bg-input: rgba(255, 255, 255, 0.62);
@@ -66,6 +68,8 @@
   --bg-sidebar-glass-fallback: rgba(10, 18, 34, 0.82);
   --bg-chat-modal-glass: rgba(10, 18, 35, 0.38);
   --bg-chat-modal-glass-fallback: rgba(10, 18, 35, 0.84);
+  --bg-chat-modal-fullscreen: rgba(10, 18, 35, 0.66);
+  --bg-chat-modal-fullscreen-fallback: rgba(10, 18, 35, 0.92);
   --bg-chat-bubble-scholar: rgba(17, 29, 54, 0.54);
   --bg-glass-subtle: rgba(22, 34, 62, 0.48);
   --bg-input: rgba(10, 17, 34, 0.62);
@@ -177,10 +181,86 @@
   backdrop-filter: blur(18px) saturate(145%);
   -webkit-backdrop-filter: blur(18px) saturate(145%);
   transition:
-    background-color 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-    color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    background-color 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-chat-modal-fullscreen {
+  background-color: var(--bg-chat-modal-fullscreen);
+  border-color: transparent;
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+.chat-header-specular {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
+}
+
+.chat-divider-subtle {
+  border-color: var(--border-subtle);
+}
+
+.chat-icon-badge {
+  background-color: var(--bg-glass-subtle);
+  border: 1px solid var(--border-glass);
+  color: var(--accent-primary);
+}
+
+.chat-control-btn {
+  background-color: var(--bg-glass-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.chat-control-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-glass);
+}
+
+.chat-text-primary {
+  color: var(--text-primary);
+}
+
+.chat-text-secondary {
+  color: var(--text-secondary);
+}
+
+.chat-text-muted {
+  color: var(--text-muted);
+}
+
+.chat-accent-icon {
+  color: var(--accent-primary);
+}
+
+.chat-bubble-user {
+  background-color: var(--accent-primary);
+  color: var(--text-on-accent);
+}
+
+.chat-bubble-scholar {
+  background-color: var(--bg-chat-bubble-scholar);
+  border: 1px solid var(--border-glass);
+  color: var(--text-primary);
+}
+
+.chat-bubble-thinking {
+  background-color: var(--bg-chat-bubble-scholar);
+  border: 1px solid var(--border-glass);
+  color: var(--text-secondary);
+}
+
+.chat-error-banner {
+  background-color: var(--bg-error-banner);
+  border: 1px solid var(--border-error-banner);
+  color: var(--text-error);
 }
 
 /* Software WebGL fallback: zero backdrop-filter stall while preserving glass look */
@@ -198,6 +278,12 @@
 
 .software-gl .glass-chat-modal-surface {
   background-color: var(--bg-chat-modal-glass-fallback);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.software-gl .glass-chat-modal-fullscreen {
+  background-color: var(--bg-chat-modal-fullscreen-fallback);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }

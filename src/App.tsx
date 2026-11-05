@@ -15,10 +15,19 @@ import { OfficeSidebar } from './components/OfficeSidebar';
 import { StudyHoverTooltip } from './components/StudyHoverTooltip';
 import { ScholarTalkLabel } from './components/ScholarTalkLabel';
 import { ScholarChatModal } from './components/ScholarChatModal';
+import { FeaturedBookOverlay } from './components/FeaturedBookOverlay';
+import {
+  computeFeaturedBookCameraFocus,
+  getSortedFeaturedBooks,
+  type FeaturedBookEntry,
+} from './data/booksData';
 import { isSoftwareGl } from './utils/webgl';
 import type {
   AuthenticatedUser,
+  BookShelfSortMode,
   CameraPreset,
+  CustomCameraFocus,
+  FeaturedBookId,
   HoveredStudyItem,
   OfficeCameraPreset,
   SceneControlState,
@@ -45,9 +54,20 @@ export default function App() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [scholarChatOpen, setScholarChatOpen] = useState(false);
+  const [scholarChatFullScreen, setScholarChatFullScreen] = useState(false);
   const [scholarSpeaking, setScholarSpeaking] = useState(false);
   const [scholarPointerEngaged, setScholarPointerEngaged] = useState(false);
   const [scholarLabelEngaged, setScholarLabelEngaged] = useState(false);
+  const [shelfSortMode, setShelfSortMode] =
+    useState<BookShelfSortMode>('curated');
+  const [selectedBookId, setSelectedBookId] =
+    useState<FeaturedBookId | null>(null);
+  const [customCameraFocus, setCustomCameraFocus] =
+    useState<CustomCameraFocus | null>(null);
+  const [queuedScholarPrompt, setQueuedScholarPrompt] = useState<{
+    id: number;
+    text: string;
+  } | null>(null);
   const [hoveredStudyItem, setHoveredStudyItem] =
     useState<HoveredStudyItem | null>(null);
   const tooltipDomRef = useRef<HTMLDivElement | null>(null);
@@ -80,6 +100,8 @@ export default function App() {
   }, []);
 
   const handleSelectCamera = useCallback((cameraPreset: CameraPreset) => {
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
     setSceneState((prev) => ({
       ...prev,
       cameraPreset,
@@ -87,9 +109,55 @@ export default function App() {
   }, []);
 
   const handleSelectOfficeCamera = useCallback((cameraPreset: OfficeCameraPreset) => {
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
     setSceneState((prev) => ({
       ...prev,
       cameraPreset,
+    }));
+  }, []);
+
+  const handleChangeShelfSortMode = useCallback(
+    (nextMode: BookShelfSortMode) => {
+      setShelfSortMode(nextMode);
+      setSelectedBookId((currentBookId) => {
+        if (currentBookId) {
+          const sorted = getSortedFeaturedBooks(nextMode);
+          const nextIdx = sorted.findIndex((b) => b.id === currentBookId);
+          if (nextIdx >= 0) {
+            setCustomCameraFocus(computeFeaturedBookCameraFocus(nextIdx));
+          }
+        }
+        return currentBookId;
+      });
+    },
+    [],
+  );
+
+  const handleSelectFeaturedBook = useCallback(
+    (bookId: FeaturedBookId, focus: CustomCameraFocus) => {
+      setShowWelcomeModal(false);
+      setSidebarOpen(false);
+      setScholarChatOpen(false);
+      setScholarChatFullScreen(false);
+      setScholarSpeaking(false);
+      setHoveredStudyItem(null);
+      setSelectedBookId(bookId);
+      setCustomCameraFocus(focus);
+      setSceneState((prev) => ({
+        ...prev,
+        cameraPreset: 'office-books',
+      }));
+    },
+    [],
+  );
+
+  const handleClearSelectedBook = useCallback(() => {
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
+    setSceneState((prev) => ({
+      ...prev,
+      cameraPreset: 'office-books',
     }));
   }, []);
 
@@ -125,6 +193,8 @@ export default function App() {
     setShowWelcomeModal(false);
     setSidebarOpen(false);
     setHoveredStudyItem(null);
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
     setScholarChatOpen(true);
     setSceneState((prev) => ({
       ...prev,
@@ -132,13 +202,37 @@ export default function App() {
     }));
   }, []);
 
+  const handleAskScholarAboutBook = useCallback((book: FeaturedBookEntry) => {
+    setShowWelcomeModal(false);
+    setSidebarOpen(false);
+    setHoveredStudyItem(null);
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
+    setScholarChatOpen(true);
+    setQueuedScholarPrompt({
+      id: Date.now(),
+      text: `What are your thoughts on "${book.title}" on your bookshelf?`,
+    });
+    setSceneState((prev) => ({
+      ...prev,
+      cameraPreset: 'office-sofa',
+    }));
+  }, []);
+
+  const handleConsumeQueuedPrompt = useCallback((id: number) => {
+    setQueuedScholarPrompt((prev) => (prev?.id === id ? null : prev));
+  }, []);
+
   const handleAuthenticated = useCallback((user: AuthenticatedUser) => {
     setAuthenticatedUser(user);
     setSidebarOpen(false);
     setScholarChatOpen(false);
+    setScholarChatFullScreen(false);
     setScholarSpeaking(false);
     setScholarPointerEngaged(false);
     setScholarLabelEngaged(false);
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
     setSceneState((prev) => ({
       ...prev,
       isAuthenticated: true,
@@ -155,9 +249,12 @@ export default function App() {
     setShowWelcomeModal(false);
     setSidebarOpen(false);
     setScholarChatOpen(false);
+    setScholarChatFullScreen(false);
     setScholarSpeaking(false);
     setScholarPointerEngaged(false);
     setScholarLabelEngaged(false);
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
     setHoveredStudyItem(null);
     setSceneState((prev) => ({
       ...prev,
@@ -166,20 +263,31 @@ export default function App() {
     }));
   }, []);
 
-  const isCameraFocusedOnScholar = sceneState.cameraPreset === 'office-sofa';
+  const isCameraFocusedOnScholar =
+    sceneState.cameraPreset === 'office-sofa' && !selectedBookId;
   const showScholarTalkLabel =
     !showWelcomeModal &&
     !hoveredStudyItem &&
+    !selectedBookId &&
+    !(scholarChatOpen && scholarChatFullScreen) &&
     (scholarPointerEngaged ||
       scholarLabelEngaged ||
       isCameraFocusedOnScholar ||
       scholarChatOpen);
+
+  const showBookshelfSortBar =
+    !showWelcomeModal &&
+    !scholarChatOpen &&
+    (sceneState.cameraPreset === 'office-books' || Boolean(selectedBookId));
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       {/* Full-Bleed 3D React Three Fiber Canvas (Garden Login <-> Post-Login 3D Office Study) */}
       <SanctuaryScene
         state={sceneState}
+        shelfSortMode={shelfSortMode}
+        selectedBookId={selectedBookId}
+        customCameraFocus={customCameraFocus}
         isConversing={scholarChatOpen}
         isScholarSpeaking={scholarSpeaking}
         scholarExternalEngaged={scholarLabelEngaged || isCameraFocusedOnScholar}
@@ -188,6 +296,7 @@ export default function App() {
         onHoverStudyItem={setHoveredStudyItem}
         tooltipDomRef={tooltipDomRef}
         onSelectOfficeView={handleSelectOfficeCamera}
+        onSelectFeaturedBook={handleSelectFeaturedBook}
         onOpenScholarChat={handleOpenScholarChat}
       />
 
@@ -238,13 +347,19 @@ export default function App() {
             theme={sceneState.theme}
             onSelectTheme={handleSelectTheme}
             cameraPreset={sceneState.cameraPreset}
+            shelfSortMode={shelfSortMode}
+            selectedBookId={selectedBookId}
             onSelectCamera={handleSelectOfficeCamera}
+            onChangeSortMode={handleChangeShelfSortMode}
+            onSelectFeaturedBook={handleSelectFeaturedBook}
             lampsOn={sceneState.officeLampsOn}
             onToggleLamps={handleToggleOfficeLamps}
             onOpenScholarChat={handleOpenScholarChat}
             onReopenWelcome={() => {
               setSidebarOpen(false);
               setScholarChatOpen(false);
+              setSelectedBookId(null);
+              setCustomCameraFocus(null);
               setShowWelcomeModal(true);
             }}
             onSignOut={handleSignOut}
@@ -259,6 +374,17 @@ export default function App() {
           <StudyHoverTooltip
             item={showWelcomeModal ? null : hoveredStudyItem}
             anchorRef={tooltipDomRef}
+          />
+
+          {/* Interactive Bookshelf Sort Strip & Transparent Featured Book Inspector */}
+          <FeaturedBookOverlay
+            visibleBar={showBookshelfSortBar}
+            sortMode={shelfSortMode}
+            selectedBookId={selectedBookId}
+            onChangeSortMode={handleChangeShelfSortMode}
+            onSelectBook={handleSelectFeaturedBook}
+            onClearSelectedBook={handleClearSelectedBook}
+            onAskScholarAboutBook={handleAskScholarAboutBook}
           />
 
           {/* Floating 3D-Projected Talking Icon Label on Hover / Move / Focus over the Reading Scholar */}
@@ -277,11 +403,16 @@ export default function App() {
             open={scholarChatOpen && !showWelcomeModal}
             onClose={() => {
               setScholarChatOpen(false);
+              setScholarChatFullScreen(false);
               setScholarSpeaking(false);
             }}
             user={authenticatedUser}
             theme={sceneState.theme}
             onScholarSpeakingChange={setScholarSpeaking}
+            isFullScreen={scholarChatFullScreen}
+            onFullScreenChange={setScholarChatFullScreen}
+            queuedPrompt={queuedScholarPrompt}
+            onConsumeQueuedPrompt={handleConsumeQueuedPrompt}
           />
 
           {/* 1. Animated Welcome Modal shown first after login */}
