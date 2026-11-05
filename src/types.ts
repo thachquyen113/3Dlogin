@@ -56,6 +56,40 @@ export interface ScholarChatMessage {
   timestamp: string;
 }
 
+export interface SupportRepresentative {
+  id: string;
+  name: string;
+  title: string;
+  specialty: string;
+  status: 'available' | 'in-call' | 'briefly-away';
+  avatarInitials: string;
+  directPhone: string;
+  extension: string;
+}
+
+export type HandoverCallStatus =
+  | 'idle'
+  | 'initiating'
+  | 'ringing'
+  | 'connected'
+  | 'ended';
+
+export interface HandoverCallState {
+  status: HandoverCallStatus;
+  representative: SupportRepresentative;
+  callDurationSeconds: number;
+  isMuted: boolean;
+  isSpeakerOn: boolean;
+  isRecordingConsented: boolean;
+}
+
+export interface SupportCallMessage {
+  id: string;
+  sender: 'user' | 'agent' | 'system';
+  text: string;
+  timestamp: string;
+}
+
 export interface SceneControlState {
   theme: ThemeMode;
   themeBurstId: number;
@@ -67,3 +101,4 @@ export interface SceneControlState {
   isAuthenticated: boolean;
   officeLampsOn: boolean;
 }
+

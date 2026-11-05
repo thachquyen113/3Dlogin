@@ -351,6 +351,7 @@ export function SanctuaryScene({
   onSelectOfficeView,
   onSelectFeaturedBook,
   onOpenScholarChat,
+  onOpenSupportHandover,
 }: {
   state: SceneControlState;
   shelfSortMode: BookShelfSortMode;
@@ -366,6 +367,7 @@ export function SanctuaryScene({
   onSelectOfficeView: (preset: OfficeCameraPreset) => void;
   onSelectFeaturedBook: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
   onOpenScholarChat: () => void;
+  onOpenSupportHandover?: (topic?: string) => void;
 }) {
   const [contextLost, setContextLost] = useState(false);
 
@@ -441,6 +443,7 @@ export function SanctuaryScene({
               onSelectOfficeView={onSelectOfficeView}
               onSelectFeaturedBook={onSelectFeaturedBook}
               onOpenScholarChat={onOpenScholarChat}
+              onOpenSupportHandover={onOpenSupportHandover}
             />
           ) : (
             <>

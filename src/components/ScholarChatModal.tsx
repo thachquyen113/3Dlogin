@@ -5,6 +5,7 @@ import {
   Maximize2,
   MessageCircle,
   Minimize2,
+  PhoneForwarded,
   RotateCcw,
   Send,
   X,
@@ -22,6 +23,7 @@ interface ScholarChatModalProps {
   user: AuthenticatedUser;
   theme: ThemeMode;
   onScholarSpeakingChange: (speaking: boolean) => void;
+  onOpenSupportHandover?: (topic?: string) => void;
   isFullScreen?: boolean;
   onFullScreenChange?: (fullScreen: boolean) => void;
   queuedPrompt?: { id: number; text: string } | null;
@@ -65,6 +67,7 @@ export function ScholarChatModal({
   user,
   theme,
   onScholarSpeakingChange,
+  onOpenSupportHandover,
   isFullScreen,
   onFullScreenChange,
   queuedPrompt,
@@ -292,6 +295,25 @@ export function ScholarChatModal({
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
+                {onOpenSupportHandover && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+                      onOpenSupportHandover(lastUserMsg?.text || 'Assistance requested from Scholar Conversation');
+                    }}
+                    aria-label="Hand over to human support call"
+                    title="Call Human Support (Handover)"
+                    className="chat-control-btn h-9 px-2.5 sm:px-3 rounded-xl cursor-pointer flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 whitespace-nowrap shrink-0"
+                    style={{
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    }}
+                  >
+                    <PhoneForwarded className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>Call Support</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleToggleFullScreen}
@@ -447,6 +469,20 @@ export function ScholarChatModal({
                     {prompt}
                   </button>
                 ))}
+                {onOpenSupportHandover && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSupportHandover('General help in Study')}
+                    className={`chat-control-btn text-left font-medium rounded-xl cursor-pointer text-emerald-700 dark:text-emerald-300 border-emerald-500/30 flex items-center gap-1 ${
+                      fullScreen
+                        ? 'text-xs px-3.5 py-2'
+                        : 'text-[11px] px-3 py-1.5'
+                    }`}
+                  >
+                    <PhoneForwarded className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span>Call human support...</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

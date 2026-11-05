@@ -45,6 +45,7 @@ interface OfficeStudySceneProps {
   onSelectOfficeView: (preset: OfficeCameraPreset) => void;
   onSelectFeaturedBook: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
   onOpenScholarChat: () => void;
+  onOpenSupportHandover?: (topic?: string) => void;
 }
 
 interface BookSpec {
@@ -2283,6 +2284,7 @@ function ComputerDeskStation({
   onStartHover,
   onEndHover,
   onFocusDesk,
+  onOpenSupportHandover,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
@@ -2297,12 +2299,15 @@ function ComputerDeskStation({
   ) => void;
   onEndHover: (id: string) => void;
   onFocusDesk: () => void;
+  onOpenSupportHandover?: (topic?: string) => void;
 }) {
   const deskLampIntensity = lampsOn ? (theme === 'dark' ? 2.2 : 1.15) : 0;
   const displayGroupRef = useRef<THREE.Group>(null);
+  const phoneGroupRef = useRef<THREE.Group>(null);
   const screenMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const screenLightRef = useRef<THREE.PointLight>(null);
   const [screenHovered, setScreenHovered] = useState(false);
+  const [phoneHovered, setPhoneHovered] = useState(false);
   const screenHoverMix = useRef(0);
 
   useFrame((_, delta) => {
@@ -2510,6 +2515,98 @@ function ComputerDeskStation({
         <meshStandardMaterial color="#e2e8f0" roughness={0.35} />
       </mesh>
 
+      {/* Interactive 3D Executive Curator Desk Telephone (HandOver Support Call Point) */}
+      <group
+        ref={phoneGroupRef}
+        position={[-0.56, 0.79, 0.15]}
+        rotation={[0, 0.28, 0]}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setPhoneHovered(true);
+          if (phoneGroupRef.current) {
+            onStartHover(phoneGroupRef.current, 0.22, {
+              id: 'curator-support-telephone',
+              kind: 'screen',
+              category: 'Sanctuary Direct Line',
+              title: 'Curator Support Telephone',
+              subtitle: 'Human Handover Line · Available Now',
+              detail: 'Click to start direct audio call with sanctuary specialist',
+              accentColor: '#10b981',
+            });
+          }
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation();
+          setPhoneHovered(false);
+          onEndHover('curator-support-telephone');
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenSupportHandover?.('Desk Telephone Direct Line');
+        }}
+      >
+        {/* Telephone Base Chassis */}
+        <mesh position={[0, 0.022, 0]} castShadow={!isSoftwareGl}>
+          <boxGeometry args={[0.2, 0.044, 0.22]} />
+          <meshStandardMaterial
+            color={phoneHovered ? '#1b4d3e' : '#1e293b'}
+            roughness={0.4}
+            metalness={0.3}
+          />
+        </mesh>
+        {/* Keypad & LCD Display Panel */}
+        <mesh position={[0, 0.045, 0.02]} rotation={[-0.18, 0, 0]}>
+          <boxGeometry args={[0.15, 0.008, 0.14]} />
+          <meshStandardMaterial
+            color={phoneHovered ? '#10b981' : '#334155'}
+            roughness={0.35}
+            emissive={phoneHovered ? '#059669' : '#0f172a'}
+            emissiveIntensity={phoneHovered ? 0.75 : 0.15}
+          />
+        </mesh>
+        {/* Brass Cradle Brackets */}
+        {[-0.055, 0.055].map((bx, i) => (
+          <mesh key={i} position={[bx, 0.05, -0.06]}>
+            <cylinderGeometry args={[0.012, 0.012, 0.025, 8]} />
+            <meshStandardMaterial color="#cba048" metalness={0.85} roughness={0.25} />
+          </mesh>
+        ))}
+        {/* Handset Receiver */}
+        <group position={[0, 0.068, -0.06]}>
+          {/* Handset Grip */}
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.014, 0.014, 0.17, 10]} />
+            <meshStandardMaterial
+              color={phoneHovered ? '#1b4d3e' : '#1e293b'}
+              roughness={0.4}
+            />
+          </mesh>
+          {/* Earpiece */}
+          <mesh position={[-0.09, 0, 0]} scale={[1, 1.3, 1]}>
+            <sphereGeometry args={[0.028, 12, 10]} />
+            <meshStandardMaterial
+              color={phoneHovered ? '#10b981' : '#0f172a'}
+              roughness={0.3}
+            />
+          </mesh>
+          {/* Mouthpiece */}
+          <mesh position={[0.09, 0, 0]} scale={[1, 1.3, 1]}>
+            <sphereGeometry args={[0.028, 12, 10]} />
+            <meshStandardMaterial
+              color={phoneHovered ? '#10b981' : '#0f172a'}
+              roughness={0.3}
+            />
+          </mesh>
+        </group>
+        {/* Subtle Pulse Halo when hovered */}
+        {phoneHovered && (
+          <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.13, 0.16, 24]} />
+            <meshBasicMaterial color="#10b981" transparent opacity={0.65} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+      </group>
+
       {/* Ceramic Coffee Mug */}
       <group position={[0.56, 0.79, 0.18]}>
         <mesh position={[0, 0.05, 0]} castShadow={!isSoftwareGl}>
@@ -2674,6 +2771,7 @@ export function OfficeStudyScene({
   onSelectOfficeView,
   onSelectFeaturedBook,
   onOpenScholarChat,
+  onOpenSupportHandover,
 }: OfficeStudySceneProps) {
   const { gl, camera, size, invalidate } = useThree();
   const maxAniso = useMemo(
@@ -3065,6 +3163,7 @@ export function OfficeStudyScene({
         onStartHover={handleStartHover}
         onEndHover={handleEndHover}
         onFocusDesk={() => onSelectOfficeView('office-desk')}
+        onOpenSupportHandover={onOpenSupportHandover}
       />
     </group>
   );

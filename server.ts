@@ -119,6 +119,99 @@ async function startServer() {
     }
   });
 
+  app.post('/api/support-call', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const {
+        message,
+        history,
+        representative,
+        userMessage,
+        userName,
+        theme,
+        cameraPreset,
+      } = body;
+
+      const userText =
+        typeof message === 'string' && message.trim()
+          ? message.trim()
+          : typeof userMessage === 'string' && userMessage.trim()
+            ? userMessage.trim()
+            : '';
+
+      if (!userText) {
+        res.status(400).json({ error: 'Please speak or send a message.' });
+        return;
+      }
+
+      const repName =
+        representative && typeof representative.name === 'string'
+          ? representative.name
+          : 'Elena Vance';
+      const repTitle =
+        representative && typeof representative.title === 'string'
+          ? representative.title
+          : 'Senior Sanctuary Curator & Archivist';
+      const repSpecialty =
+        representative && typeof representative.specialty === 'string'
+          ? representative.specialty
+          : 'Rare folios, botanical cataloging & study navigation';
+
+      const caller =
+        typeof userName === 'string' && userName.trim() ? userName.trim() : 'Guest';
+
+      const ai = getGenAIClient();
+
+      const systemInstruction = [
+        `You are ${repName}, ${repTitle} at Sylva Sanctuary. Your specialty is: ${repSpecialty}.`,
+        `You have just accepted an active live support voice/audio call handed over from the 3D study interface with sanctuary member ${caller}.`,
+        'You are a real, warm, highly competent human specialist working directly at Sylva Sanctuary.',
+        `The visitor is currently viewing the 3D sanctuary room (preset: "${cameraPreset || 'study'}", theme: "${theme || 'light'}"). In the room, Professor Arthur Linnea is seated on the tufted sofa reading Flora Borealis with his sleeping marmalade cat Barnaby, beside walnut library shelves displaying the featured Japanese volumes (Noboru Kondo and Akemi Akisato books) and a computer workstation.`,
+        'Speak directly over the phone line in first person with professional warmth, clarity, helpfulness, and empathy. Be concise (2 to 4 sentences max per spoken response) so it sounds like real, natural speech over a phone line.',
+        'Address the caller by their first name naturally. If they ask about books, navigating the room, audio settings, account issues, or anything else, give crisp, actionable, delightful assistance.',
+      ].join(' ');
+
+      const recentTurns = Array.isArray(history) ? history.slice(-8) : [];
+      const contents = [
+        ...recentTurns.map((entry) => ({
+          role:
+            entry && (entry.sender === 'agent' || entry.role === 'model')
+              ? 'model'
+              : 'user',
+          parts: [{ text: String((entry && (entry.text || entry.message)) || '') }],
+        })),
+        {
+          role: 'user',
+          parts: [{ text: userText }],
+        },
+      ];
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents,
+        config: {
+          systemInstruction,
+        },
+      });
+
+      const replyText = response.text?.trim();
+      if (!replyText) {
+        res.status(502).json({
+          error: 'Connection quiet. Could you please repeat that?',
+        });
+        return;
+      }
+
+      res.json({ reply: replyText });
+    } catch (err) {
+      console.error('Support call endpoint error:', err);
+      res.status(500).json({
+        error:
+          'Elena Vance is listening, but the audio channel flickered. Please speak again.',
+      });
+    }
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

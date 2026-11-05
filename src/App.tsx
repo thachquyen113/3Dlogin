@@ -15,6 +15,7 @@ import { OfficeSidebar } from './components/OfficeSidebar';
 import { StudyHoverTooltip } from './components/StudyHoverTooltip';
 import { ScholarTalkLabel } from './components/ScholarTalkLabel';
 import { ScholarChatModal } from './components/ScholarChatModal';
+import { SupportHandoverModal } from './components/SupportHandoverModal';
 import { FeaturedBookOverlay } from './components/FeaturedBookOverlay';
 import {
   computeFeaturedBookCameraFocus,
@@ -56,6 +57,8 @@ export default function App() {
   const [scholarChatOpen, setScholarChatOpen] = useState(false);
   const [scholarChatFullScreen, setScholarChatFullScreen] = useState(false);
   const [scholarSpeaking, setScholarSpeaking] = useState(false);
+  const [supportHandoverOpen, setSupportHandoverOpen] = useState(false);
+  const [supportHandoverTopic, setSupportHandoverTopic] = useState('');
   const [scholarPointerEngaged, setScholarPointerEngaged] = useState(false);
   const [scholarLabelEngaged, setScholarLabelEngaged] = useState(false);
   const [shelfSortMode, setShelfSortMode] =
@@ -202,6 +205,14 @@ export default function App() {
     }));
   }, []);
 
+  const handleOpenSupportHandover = useCallback((topic?: string) => {
+    setShowWelcomeModal(false);
+    setSidebarOpen(false);
+    setHoveredStudyItem(null);
+    setSupportHandoverTopic(topic || 'Study Session Support');
+    setSupportHandoverOpen(true);
+  }, []);
+
   const handleAskScholarAboutBook = useCallback((book: FeaturedBookEntry) => {
     setShowWelcomeModal(false);
     setSidebarOpen(false);
@@ -229,6 +240,7 @@ export default function App() {
     setScholarChatOpen(false);
     setScholarChatFullScreen(false);
     setScholarSpeaking(false);
+    setSupportHandoverOpen(false);
     setScholarPointerEngaged(false);
     setScholarLabelEngaged(false);
     setSelectedBookId(null);
@@ -251,6 +263,7 @@ export default function App() {
     setScholarChatOpen(false);
     setScholarChatFullScreen(false);
     setScholarSpeaking(false);
+    setSupportHandoverOpen(false);
     setScholarPointerEngaged(false);
     setScholarLabelEngaged(false);
     setSelectedBookId(null);
@@ -298,6 +311,7 @@ export default function App() {
         onSelectOfficeView={handleSelectOfficeCamera}
         onSelectFeaturedBook={handleSelectFeaturedBook}
         onOpenScholarChat={handleOpenScholarChat}
+        onOpenSupportHandover={handleOpenSupportHandover}
       />
 
       {/* Smooth CSS-Variable Ambient Sunshine & Nocturnal Starlight Washes */}
@@ -355,6 +369,7 @@ export default function App() {
             lampsOn={sceneState.officeLampsOn}
             onToggleLamps={handleToggleOfficeLamps}
             onOpenScholarChat={handleOpenScholarChat}
+            onOpenSupportHandover={handleOpenSupportHandover}
             onReopenWelcome={() => {
               setSidebarOpen(false);
               setScholarChatOpen(false);
@@ -366,11 +381,25 @@ export default function App() {
           />
 
           {/* Top-Right Theme Switcher preserved in Post-Login Office */}
-          <div className="fixed top-5 right-6 z-30 pointer-events-auto">
+          <div className="fixed top-5 right-6 z-30 pointer-events-auto flex items-center gap-2">
+            {/* Quick Call Support HandOver pill button */}
+            <button
+              type="button"
+              onClick={() => handleOpenSupportHandover('Direct Call from Top Bar')}
+              className="theme-toggle-shell h-11 px-3.5 rounded-2xl flex items-center gap-2 text-xs font-semibold cursor-pointer pointer-events-auto backdrop-blur-md transition-colors border hover:border-emerald-500/50"
+              style={{
+                color: 'var(--text-primary)',
+              }}
+              title="Call Human Support"
+              aria-label="Call Human Support"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="hidden sm:inline">Call Support</span>
+            </button>
             <ThemeToggle theme={sceneState.theme} onSelectTheme={handleSelectTheme} />
           </div>
 
-          {/* Floating 3D-Projected Hover Tooltip for Bookshelf Volumes & Computer Screen */}
+          {/* Floating 3D-Projected Hover Tooltip for Bookshelf Volumes, Computer Screen & Curator Telephone */}
           <StudyHoverTooltip
             item={showWelcomeModal ? null : hoveredStudyItem}
             anchorRef={tooltipDomRef}
@@ -409,10 +438,22 @@ export default function App() {
             user={authenticatedUser}
             theme={sceneState.theme}
             onScholarSpeakingChange={setScholarSpeaking}
+            onOpenSupportHandover={handleOpenSupportHandover}
             isFullScreen={scholarChatFullScreen}
             onFullScreenChange={setScholarChatFullScreen}
             queuedPrompt={queuedScholarPrompt}
             onConsumeQueuedPrompt={handleConsumeQueuedPrompt}
+          />
+
+          {/* HandOver: Real Voice Call with Human Support Specialists */}
+          <SupportHandoverModal
+            open={supportHandoverOpen && !showWelcomeModal}
+            onClose={() => setSupportHandoverOpen(false)}
+            user={authenticatedUser}
+            theme={sceneState.theme}
+            cameraPreset={sceneState.cameraPreset}
+            initialTopic={supportHandoverTopic}
+            sourceContext={scholarChatOpen ? 'scholar-modal' : 'general'}
           />
 
           {/* 1. Animated Welcome Modal shown first after login */}

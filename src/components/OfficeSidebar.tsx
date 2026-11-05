@@ -2,6 +2,7 @@ import {
   ArrowUpDown,
   BookOpen,
   Compass,
+  Headphones,
   Lamp,
   Library,
   LogOut,
@@ -9,6 +10,7 @@ import {
   MessageCircle,
   Monitor,
   Moon,
+  PhoneCall,
   Sparkles,
   Sun,
   X,
@@ -44,6 +46,7 @@ interface OfficeSidebarProps {
   lampsOn: boolean;
   onToggleLamps: () => void;
   onOpenScholarChat: () => void;
+  onOpenSupportHandover: (topic?: string) => void;
   onReopenWelcome: () => void;
   onSignOut: () => void;
 }
@@ -96,6 +99,7 @@ export function OfficeSidebar({
   lampsOn,
   onToggleLamps,
   onOpenScholarChat,
+  onOpenSupportHandover,
   onReopenWelcome,
   onSignOut,
 }: OfficeSidebarProps) {
@@ -350,6 +354,45 @@ export function OfficeSidebar({
                     </div>
                     <div className="text-[11px] truncate opacity-90">
                       Ask the scholar a question
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* HandOver: Human Support Voice Call */}
+              <div className="space-y-2">
+                <p
+                  className="text-xs font-semibold px-1"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Human Support Handover
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onOpenSupportHandover('Handover from Study Menu')}
+                  className="w-full px-3.5 py-2.5 rounded-2xl flex items-center gap-3 text-left cursor-pointer border transition-colors"
+                  style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                    style={{
+                      backgroundColor: 'var(--accent-primary)',
+                      color: 'var(--text-on-accent)',
+                    }}
+                  >
+                    <PhoneCall className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold truncate flex items-center gap-1.5">
+                      <span>Call Human Support</span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    </div>
+                    <div className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>
+                      Direct audio call with curator
                     </div>
                   </div>
                 </button>
