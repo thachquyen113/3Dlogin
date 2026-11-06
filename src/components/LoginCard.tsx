@@ -11,7 +11,12 @@ import {
   Mail,
   User,
 } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import {
+  AnimatePresence,
+  motion,
+  useAnimationControls,
+  useReducedMotion,
+} from 'motion/react';
 import type { AuthenticatedUser, AuthView, ThemeMode } from '../types';
 
 interface LoginCardProps {
@@ -23,6 +28,7 @@ interface FieldErrors {
   fullName?: string;
   email?: string;
   password?: string;
+  confirmPassword?: string;
   form?: string;
 }
 
@@ -30,20 +36,29 @@ interface TouchedFields {
   fullName: boolean;
   email: boolean;
   password: boolean;
+  confirmPassword?: boolean;
 }
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+const DISALLOWED_EMAIL_DOMAINS = ['tempmail.com', 'throwaway.email', 'mailinator.com', '10minutemail.com', 'fake.com'];
+const COMMON_WEAK_PASSWORDS = ['password', 'password1', '12345678', 'qwerty123', 'admin123', 'sylva123', 'welcome1'];
 
 function validateFullName(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) {
-    return 'Full name is required.';
+    return 'Full name is required to personalize your study credentials.';
   }
   if (trimmed.length < 2) {
-    return 'Enter at least 2 characters for your name.';
+    return 'Full name must contain at least 2 characters.';
+  }
+  if (trimmed.length > 50) {
+    return 'Full name cannot exceed 50 characters.';
   }
   if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(trimmed)) {
-    return 'Name can only contain letters, spaces, and hyphens.';
+    return 'Full name can only contain letters, spaces, hyphens, and apostrophes.';
+  }
+  if (!/\s/.test(trimmed)) {
+    return 'Please enter both first and last name (e.g., Claire Linnea).';
   }
   return undefined;
 }
@@ -53,24 +68,62 @@ function validateEmail(value: string): string | undefined {
   if (!trimmed) {
     return 'Email address is required.';
   }
+  if (trimmed.length > 100) {
+    return 'Email address cannot exceed 100 characters.';
+  }
   if (!EMAIL_REGEX.test(trimmed)) {
-    return 'Enter a valid email address (for example, name@sylva.garden).';
+    return 'Enter a valid email address with domain (e.g. name@domain.com).';
+  }
+  const domain = trimmed.split('@')[1]?.toLowerCase();
+  if (domain && DISALLOWED_EMAIL_DOMAINS.includes(domain)) {
+    return 'Disposable or temporary email providers are not supported. Use your permanent email.';
   }
   return undefined;
 }
 
-function validatePassword(value: string): string | undefined {
+function validatePassword(value: string, emailValue?: string): string | undefined {
   if (!value) {
     return 'Password is required.';
   }
   if (value.length < 8) {
     return 'Password must be at least 8 characters long.';
   }
-  if (!/[A-Za-z]/.test(value)) {
-    return 'Include at least one letter in your password.';
+  if (value.length > 64) {
+    return 'Password cannot exceed 64 characters.';
   }
-  if (!/[0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(value)) {
-    return 'Include at least one number or symbol.';
+  if (/\s/.test(value)) {
+    return 'Password cannot contain spaces.';
+  }
+  if (!/[a-z]/.test(value)) {
+    return 'Password must contain at least one lowercase letter (a-z).';
+  }
+  if (!/[A-Z]/.test(value)) {
+    return 'Password must contain at least one uppercase letter (A-Z).';
+  }
+  if (!/[0-9]/.test(value)) {
+    return 'Password must contain at least one number (0-9).';
+  }
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(value)) {
+    return 'Password must contain at least one special symbol (!@#$%^&*...).';
+  }
+  if (COMMON_WEAK_PASSWORDS.includes(value.toLowerCase())) {
+    return 'This password is too easily guessed. Please choose a more secure passkey.';
+  }
+  if (emailValue && emailValue.includes('@')) {
+    const usernamePart = emailValue.split('@')[0].toLowerCase();
+    if (usernamePart.length >= 3 && value.toLowerCase().includes(usernamePart)) {
+      return 'Password cannot contain your email username for security.';
+    }
+  }
+  return undefined;
+}
+
+function validateConfirmPassword(password: string, confirmPassword: string): string | undefined {
+  if (!confirmPassword) {
+    return 'Please confirm your password.';
+  }
+  if (password !== confirmPassword) {
+    return 'Passwords do not match. Please verify both entries.';
   }
   return undefined;
 }
@@ -85,7 +138,9 @@ export function LoginCard({
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,11 +151,13 @@ export function LoginCard({
     fullName: false,
     email: false,
     password: false,
+    confirmPassword: false,
   });
 
   // Incrementing key triggers damped shake animation on validation failure
   const [shakeCount, setShakeCount] = useState(0);
   const [cardErrorHighlight, setCardErrorHighlight] = useState(false);
+  const shakeControls = useAnimationControls();
 
   // Subtle interactive 3D card perspective tilt on pointer hover
   const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
@@ -129,7 +186,7 @@ export function LoginCard({
 
   const switchView = (next: AuthView) => {
     setErrors({});
-    setTouched({ fullName: false, email: false, password: false });
+    setTouched({ fullName: false, email: false, password: false, confirmPassword: false });
     setCardErrorHighlight(false);
     setResetSent(false);
     setView(next);
@@ -139,6 +196,17 @@ export function LoginCard({
     setErrors(nextErrors);
     setShakeCount((prev) => prev + 1);
     setCardErrorHighlight(true);
+
+    if (!prefersReducedMotion) {
+      void shakeControls.start({
+        x: [0, -9, 8, -6, 5, -2.5, 1, 0],
+        rotateZ: [0, -0.75, 0.65, -0.45, 0.35, -0.15, 0],
+        transition: {
+          duration: 0.48,
+          ease: [0.36, 0.07, 0.19, 0.97],
+        },
+      });
+    }
   };
 
   const handleFullNameChange = (value: string) => {
@@ -159,6 +227,7 @@ export function LoginCard({
       setErrors((prev) => ({
         ...prev,
         email: validateEmail(value),
+        password: touched.password ? validatePassword(password, value) : prev.password,
         form: undefined,
       }));
     }
@@ -169,7 +238,22 @@ export function LoginCard({
     if (touched.password || errors.password) {
       setErrors((prev) => ({
         ...prev,
-        password: validatePassword(value),
+        password: validatePassword(value, email),
+        confirmPassword:
+          view === 'signup' && (touched.confirmPassword || confirmPassword)
+            ? validateConfirmPassword(value, confirmPassword)
+            : prev.confirmPassword,
+        form: undefined,
+      }));
+    }
+  };
+
+  const handleConfirmPasswordChange = (value: string) => {
+    setConfirmPassword(value);
+    if (touched.confirmPassword || errors.confirmPassword) {
+      setErrors((prev) => ({
+        ...prev,
+        confirmPassword: validateConfirmPassword(password, value),
         form: undefined,
       }));
     }
@@ -177,12 +261,15 @@ export function LoginCard({
 
   const handleBlurField = (field: keyof TouchedFields) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
+
     if (field === 'fullName' && view === 'signup') {
       setErrors((prev) => ({ ...prev, fullName: validateFullName(fullName) }));
     } else if (field === 'email') {
       setErrors((prev) => ({ ...prev, email: validateEmail(email) }));
     } else if (field === 'password' && view !== 'forgot') {
-      setErrors((prev) => ({ ...prev, password: validatePassword(password) }));
+      setErrors((prev) => ({ ...prev, password: validatePassword(password, email) }));
+    } else if (field === 'confirmPassword' && view === 'signup') {
+      setErrors((prev) => ({ ...prev, confirmPassword: validateConfirmPassword(password, confirmPassword) }));
     }
   };
 
@@ -192,10 +279,12 @@ export function LoginCard({
     }
     setEmail('claire.botanist@sylva.garden');
     setPassword('SylvaGarden8!');
+    setConfirmPassword('SylvaGarden8!');
     setTouched({
       fullName: view === 'signup',
       email: true,
       password: view !== 'forgot',
+      confirmPassword: view === 'signup',
     });
     setErrors({});
     setCardErrorHighlight(false);
@@ -213,10 +302,13 @@ export function LoginCard({
     if (view === 'signup') {
       const nameErr = validateFullName(fullName);
       if (nameErr) nextErrors.fullName = nameErr;
+
+      const confirmErr = validateConfirmPassword(password, confirmPassword);
+      if (confirmErr) nextErrors.confirmPassword = confirmErr;
     }
 
     if (view !== 'forgot') {
-      const passErr = validatePassword(password);
+      const passErr = validatePassword(password, email);
       if (passErr) nextErrors.password = passErr;
     }
 
@@ -224,13 +316,16 @@ export function LoginCard({
       fullName: view === 'signup',
       email: true,
       password: view !== 'forgot',
+      confirmPassword: view === 'signup',
     });
 
     if (Object.keys(nextErrors).length > 0) {
       nextErrors.form =
         view === 'forgot'
-          ? 'Please provide a valid account email before continuing.'
-          : 'Please resolve the highlighted credential requirements.';
+          ? 'Please enter a valid permanent email address.'
+          : view === 'signup'
+            ? 'Please correct all highlighted account requirements below.'
+            : 'Please resolve the highlighted credential requirements.';
       triggerValidationShake(nextErrors);
       return;
     }
@@ -248,14 +343,6 @@ export function LoginCard({
 
     window.setTimeout(() => {
       setIsSubmitting(false);
-      // Simulate rejected credentials if password is literally "Password1"
-      if (password.toLowerCase() === 'password1') {
-        triggerValidationShake({
-          password: 'That password is too common. Choose a stronger passkey.',
-          form: 'Sign-in rejected: weak or unrecognized credentials.',
-        });
-        return;
-      }
       const resolvedEmail = email.trim() || 'claire.botanist@sylva.garden';
       const derivedName =
         fullName.trim() ||
@@ -291,43 +378,52 @@ export function LoginCard({
     }, 420);
   };
 
-  // Password rule checks for live checklist & strength meter
+  // Upgraded password requirements checklist
   const ruleMinLength = password.length >= 8;
-  const ruleHasLetter = /[A-Za-z]/.test(password);
-  const ruleHasNumberOrSymbol = /[0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
+  const ruleHasLower = /[a-z]/.test(password);
+  const ruleHasUpper = /[A-Z]/.test(password);
+  const ruleHasNumber = /[0-9]/.test(password);
+  const ruleHasSymbol = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password);
+  const ruleNoSpace = password.length > 0 && !/\s/.test(password);
 
   const rulesPassedCount =
-    (ruleMinLength ? 1 : 0) + (ruleHasLetter ? 1 : 0) + (ruleHasNumberOrSymbol ? 1 : 0);
+    (ruleMinLength ? 1 : 0) +
+    (ruleHasLower ? 1 : 0) +
+    (ruleHasUpper ? 1 : 0) +
+    (ruleHasNumber ? 1 : 0) +
+    (ruleHasSymbol ? 1 : 0) +
+    (ruleNoSpace ? 1 : 0);
+
   const passwordStrength =
     password.length === 0
       ? 0
       : Math.min(
           100,
-          Math.round((rulesPassedCount / 3) * 82 + (password.length >= 12 ? 18 : 0)),
+          Math.round((rulesPassedCount / 6) * 85 + (password.length >= 12 ? 15 : 0)),
         );
 
   const hasAnyError = Boolean(
-    errors.fullName || errors.email || errors.password || errors.form,
+    errors.fullName || errors.email || errors.password || errors.confirmPassword || errors.form,
   );
 
   const fullNameValid = touched.fullName && !validateFullName(fullName);
   const emailValid = touched.email && !validateEmail(email);
-  const passwordValid = touched.password && !validatePassword(password);
+  const passwordValid = touched.password && !validatePassword(password, email);
+  const confirmPasswordValid =
+    view === 'signup' && Boolean(confirmPassword) && !validateConfirmPassword(password, confirmPassword);
 
   const showPasswordRules =
     view === 'signup' || passwordFocused || Boolean(errors.password);
 
   return (
     <motion.div
-      key={`card-shake-${shakeCount}`}
-      animate={
-        shakeCount > 0 && !prefersReducedMotion
-          ? { x: [0, -11, 10, -8, 6, -3, 0] }
-          : { x: 0 }
-      }
-      transition={{ duration: 0.44, ease: 'easeInOut' }}
+      animate={shakeControls}
       className="w-full max-w-[438px] pointer-events-auto"
-      style={{ perspective: '1200px' }}
+      style={{
+        perspective: '1200px',
+        transformOrigin: '50% 50%',
+        willChange: 'transform',
+      }}
     >
       <motion.div
         onPointerMove={handlePointerMove}
@@ -802,12 +898,15 @@ export function LoginCard({
                             </div>
                           </div>
 
-                          {/* 3 Explicit Requirement Checks */}
-                          <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                          {/* 6 Explicit Security Requirement Checks */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]">
                             {[
                               { ok: ruleMinLength, label: '8+ chars' },
-                              { ok: ruleHasLetter, label: '1+ letter' },
-                              { ok: ruleHasNumberOrSymbol, label: '1+ digit/sym' },
+                              { ok: ruleHasLower, label: '1+ lowercase' },
+                              { ok: ruleHasUpper, label: '1+ uppercase' },
+                              { ok: ruleHasNumber, label: '1+ number' },
+                              { ok: ruleHasSymbol, label: '1+ symbol' },
+                              { ok: ruleNoSpace, label: 'No spaces' },
                             ].map((req) => (
                               <div
                                 key={req.label}
@@ -832,6 +931,108 @@ export function LoginCard({
                             ))}
                           </div>
                         </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {/* Confirm Password Field (Sign Up Mode) */}
+                {view === 'signup' && (
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="confirm-password-input"
+                      className="block text-xs font-medium"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      Confirm Password
+                    </label>
+                    <motion.div
+                      key={`confirm-pass-shake-${errors.confirmPassword ? shakeCount : 0}`}
+                      animate={
+                        errors.confirmPassword && shakeCount > 0 && !prefersReducedMotion
+                          ? { x: [0, -6, 6, -4, 3, 0] }
+                          : { x: 0 }
+                      }
+                      transition={{ duration: 0.34, ease: 'easeInOut' }}
+                      className="relative"
+                    >
+                      <Lock
+                        className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-200"
+                        style={{
+                          color: errors.confirmPassword
+                            ? 'var(--text-error)'
+                            : confirmPasswordValid
+                              ? 'var(--accent-primary)'
+                              : 'var(--text-muted)',
+                        }}
+                      />
+                      <input
+                        id="confirm-password-input"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => handleConfirmPasswordChange(e.target.value)}
+                        onBlur={() => handleBlurField('confirmPassword')}
+                        placeholder="Re-enter password to confirm"
+                        autoComplete="new-password"
+                        aria-invalid={Boolean(errors.confirmPassword)}
+                        aria-describedby={errors.confirmPassword ? 'confirm-password-error' : undefined}
+                        className={`glass-input w-full pl-10 pr-16 py-2.5 rounded-xl text-sm ${
+                          errors.confirmPassword
+                            ? 'glass-input-error'
+                            : confirmPasswordValid
+                              ? 'glass-input-valid'
+                              : ''
+                        }`}
+                      />
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        {errors.confirmPassword && (
+                          <span
+                            aria-hidden="true"
+                            className="p-0.5 pointer-events-none"
+                            style={{ color: 'var(--text-error)' }}
+                          >
+                            <AlertCircle className="w-4 h-4" />
+                          </span>
+                        )}
+                        {!errors.confirmPassword && confirmPasswordValid && (
+                          <span
+                            aria-hidden="true"
+                            className="p-0.5 pointer-events-none"
+                            style={{ color: 'var(--accent-primary)' }}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                          className="p-1 rounded-md cursor-pointer opacity-75 hover:opacity-100"
+                          style={{ color: 'var(--text-secondary)' }}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </motion.div>
+
+                    <AnimatePresence initial={false}>
+                      {errors.confirmPassword && (
+                        <motion.p
+                          id="confirm-password-error"
+                          role="alert"
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                          className="text-xs font-medium"
+                          style={{ color: 'var(--text-error)' }}
+                        >
+                          {errors.confirmPassword}
+                        </motion.p>
                       )}
                     </AnimatePresence>
                   </div>

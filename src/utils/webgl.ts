@@ -545,23 +545,35 @@ export function getBookPageTexture(maxAnisotropy = 4): THREE.CanvasTexture {
 }
 
 /**
- * Procedural Dark Charcoal-Navy Pinstripe Suit Wool Texture (SRGBColorSpace).
+ * Procedural Solid Dark Midnight Navy Worsted Wool Suit Texture (SRGBColorSpace).
+ * Matched to reference image: solid deep midnight navy tailored suit with microscopic twill weave (no pinstripes).
  */
-let _pinstripeSuitTex: THREE.CanvasTexture | null = null;
-export function getPinstripeSuitTexture(maxAnisotropy = 4): THREE.CanvasTexture {
-  if (_pinstripeSuitTex) return _pinstripeSuitTex;
+let _navySuitTex: THREE.CanvasTexture | null = null;
+export function getNavySuitTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  if (_navySuitTex) return _navySuitTex;
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  // Deep charcoal-navy worsted wool base
-  ctx.fillStyle = '#181e2a';
+  // Deep rich midnight navy worsted wool base
+  ctx.fillStyle = '#1c2637';
   ctx.fillRect(0, 0, size, size);
 
-  // Subtle diagonal twill weave grain
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+  // Microscopic twill weave texture with fine tonal variation
+  for (let y = 0; y < size; y += 2) {
+    for (let x = 0; x < size; x += 2) {
+      const isDiagonal = (x + y) % 4 === 0;
+      const noise = ((x * 37 + y * 73) % 17) / 17 - 0.5;
+      const alpha = isDiagonal ? 0.045 + noise * 0.02 : 0.015 + noise * 0.01;
+      ctx.fillStyle = alpha > 0 ? `rgba(255, 255, 255, ${alpha})` : `rgba(0, 0, 0, ${Math.abs(alpha)})`;
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  // Soft diagonal worsted wool nap
+  ctx.strokeStyle = 'rgba(25, 35, 50, 0.35)';
   ctx.lineWidth = 1;
   for (let i = -size; i < size * 2; i += 4) {
     ctx.beginPath();
@@ -570,54 +582,69 @@ export function getPinstripeSuitTexture(maxAnisotropy = 4): THREE.CanvasTexture 
     ctx.stroke();
   }
 
-  // Fine muted slate-silver vertical pinstripes
-  for (let x = 8; x < size; x += 16) {
-    ctx.fillStyle = 'rgba(168, 184, 208, 0.15)';
-    ctx.fillRect(x, 0, 1.2, size);
-  }
-
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2, 2);
+  tex.repeat.set(3, 3);
   tex.anisotropy = maxAnisotropy;
   tex.needsUpdate = true;
-  _pinstripeSuitTex = tex;
+  _navySuitTex = tex;
   return tex;
 }
 
 /**
- * Procedural Light-Blue & White Finely Striped Dress Shirt Texture (SRGBColorSpace).
+ * Procedural Solid Crisp White Dress Shirt Poplin Texture (SRGBColorSpace).
+ * Matched to reference image: pristine solid white dress shirt with subtle luxury oxford weave.
  */
-let _stripedShirtTex: THREE.CanvasTexture | null = null;
-export function getStripedDressShirtTexture(maxAnisotropy = 4): THREE.CanvasTexture {
-  if (_stripedShirtTex) return _stripedShirtTex;
+let _crispWhiteShirtTex: THREE.CanvasTexture | null = null;
+export function getCrispWhiteShirtTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  if (_crispWhiteShirtTex) return _crispWhiteShirtTex;
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  // Crisp soft white poplin base
-  ctx.fillStyle = '#f4f8fc';
+  // Crisp pristine white cotton poplin base
+  ctx.fillStyle = '#fafbfd';
   ctx.fillRect(0, 0, size, size);
 
-  // Fine sky-slate vertical dress shirt stripes
-  for (let x = 0; x < size; x += 8) {
-    ctx.fillStyle = '#bfd2ea';
-    ctx.fillRect(x, 0, 3, size);
+  // Very fine microscopic oxford weave thread lattice
+  for (let y = 0; y < size; y += 2) {
+    for (let x = 0; x < size; x += 2) {
+      const checker = (x / 2 + y / 2) % 2 === 0;
+      ctx.fillStyle = checker ? 'rgba(238, 242, 248, 0.7)' : 'rgba(255, 255, 255, 0.9)';
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  // Soft horizontal yarn lines
+  ctx.fillStyle = 'rgba(226, 232, 240, 0.22)';
+  for (let y = 0; y < size; y += 4) {
+    ctx.fillRect(0, y, size, 1);
   }
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2.5, 2.5);
+  tex.repeat.set(4, 4);
   tex.anisotropy = maxAnisotropy;
   tex.needsUpdate = true;
-  _stripedShirtTex = tex;
+  _crispWhiteShirtTex = tex;
   return tex;
+}
+
+/**
+ * Backward compatibility aliases.
+ */
+export function getPinstripeSuitTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  return getNavySuitTexture(maxAnisotropy);
+}
+
+export function getStripedDressShirtTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  return getCrispWhiteShirtTexture(maxAnisotropy);
 }
 
 /**

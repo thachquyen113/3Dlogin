@@ -7,7 +7,9 @@ import {
   getBookPageTexture,
   getBookSpineTexture,
   getContactShadowTexture,
+  getCrispWhiteShirtTexture,
   getMonitorScreenTexture,
+  getNavySuitTexture,
   getPinstripeSuitTexture,
   getRugPatternTexture,
   getStripedDressShirtTexture,
@@ -1229,13 +1231,16 @@ function SleepingOrangeCat({
 }
 
 /**
- * Plush Tufted Sofa + Animated Old Man Sitting & Reading an Open Hardcover Book
+ * Plush Contemporary Greige/Taupe Sofa + Remade 3D Distinguished Scholar in Solid Navy Suit & White Shirt
+ * Seated holding an open hardcover book with both hands (matched to reference photograph).
  * + Sleeping Orange Tabby Cat curled beside him.
  */
 function SofaWithReadingScholar({
   position,
   rotation = [0, 0, 0],
   bookPageTex,
+  navySuitTex,
+  crispWhiteShirtTex,
   pinstripeSuitTex,
   stripedShirtTex,
   shadowTex,
@@ -1251,8 +1256,10 @@ function SofaWithReadingScholar({
   position: [number, number, number];
   rotation?: [number, number, number];
   bookPageTex: THREE.CanvasTexture;
-  pinstripeSuitTex: THREE.CanvasTexture;
-  stripedShirtTex: THREE.CanvasTexture;
+  navySuitTex?: THREE.CanvasTexture;
+  crispWhiteShirtTex?: THREE.CanvasTexture;
+  pinstripeSuitTex?: THREE.CanvasTexture;
+  stripedShirtTex?: THREE.CanvasTexture;
   shadowTex: THREE.CanvasTexture;
   lampsOn: boolean;
   theme: ThemeMode;
@@ -1275,18 +1282,21 @@ function SofaWithReadingScholar({
   const auraRingMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const leaveTimerRef = useRef<number | null>(null);
 
-  // Shared dark charcoal-navy pinstripe suit wool material (highlights blazer + sleeves uniformly)
+  const suitTex = navySuitTex || pinstripeSuitTex;
+  const shirtTex = crispWhiteShirtTex || stripedShirtTex;
+
+  // Solid dark midnight navy tailored suit worsted wool material (matched to reference photo)
   const suitJacketMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: '#ffffff',
-        map: pinstripeSuitTex,
+        map: suitTex,
         emissive: '#d97706',
         emissiveIntensity: 0,
-        roughness: 0.64,
-        metalness: 0.05,
+        roughness: 0.58,
+        metalness: 0.04,
       }),
-    [pinstripeSuitTex],
+    [suitTex],
   );
 
   useEffect(() => {
@@ -1357,7 +1367,7 @@ function SofaWithReadingScholar({
     const lm = lookUpMix.current;
     const sm = speakMix.current;
 
-    // Subtle warm highlight on pinstripe suit blazer & rectangular glasses when hovered, focused, or conversing
+    // Subtle warm highlight on navy suit blazer & rectangular glasses when hovered, focused, or conversing
     suitJacketMat.emissiveIntensity = hm * 0.22 + (isConversing ? 0.09 : 0);
     if (glassesFrameMatRef.current) {
       glassesFrameMatRef.current.emissiveIntensity = hm * 0.4 + sm * 0.22;
@@ -1408,25 +1418,26 @@ function SofaWithReadingScholar({
         -0.074 - Math.abs(Math.sin(t * 8.8)) * 0.0085 * sm;
     }
 
-    // Right forearm holds executive pen over book pages, turns pages, or gestures thoughtfully when speaking
+    // Both hands hold open book symmetrically (matching reference photo) with micro-adjustments
     if (rightArmRef.current) {
       const turnLift = Math.sin(smoothTurn * Math.PI);
-      const speakGesture = (0.5 + 0.5 * Math.sin(t * 4.4)) * 0.22 * sm;
+      const speakGesture = Math.sin(t * 3.4) * 0.025 * sm;
       rightArmRef.current.rotation.x =
-        -0.78 - turnLift * 0.16 - lm * 0.09 - speakGesture;
+        -0.76 - turnLift * 0.12 - lm * 0.08 + speakGesture;
       rightArmRef.current.rotation.z =
-        0.24 + turnLift * 0.14 - speakGesture * 0.42;
+        0.2 - turnLift * 0.08 + speakGesture * 0.08;
     }
 
     if (leftArmRef.current) {
-      leftArmRef.current.rotation.x = -0.78 + breath * 0.015 + lm * 0.06;
+      leftArmRef.current.rotation.x = -0.76 + breath * 0.012 - lm * 0.08;
+      leftArmRef.current.rotation.z = -0.2;
     }
 
-    // Book rests lower on his lap while conversing so his face & hands stay open
+    // Book rests comfortably in front of chest/lap
     if (bookGroupRef.current) {
       bookGroupRef.current.position.y =
-        THREE.MathUtils.lerp(0.9, 0.83, lm) + breath * 0.01;
-      bookGroupRef.current.rotation.x = THREE.MathUtils.lerp(0.62, 0.38, lm);
+        THREE.MathUtils.lerp(0.88, 0.82, lm) + breath * 0.008;
+      bookGroupRef.current.rotation.x = THREE.MathUtils.lerp(0.62, 0.4, lm);
     }
 
     // Flipping page arcs 160 degrees from right page to left page
@@ -1450,7 +1461,7 @@ function SofaWithReadingScholar({
         <meshBasicMaterial map={shadowTex} transparent opacity={0.62} depthWrite={false} />
       </mesh>
 
-      {/* ==================== 1. COMPOSITE TUFTED SOFA ==================== */}
+      {/* ==================== 1. CONTEMPORARY WARM TAUPE / GREIGE FABRIC SOFA ==================== */}
       {/* 4 Tapered Walnut Legs */}
       {[
         [-1.08, 0.09, -0.4],
@@ -1470,13 +1481,13 @@ function SofaWithReadingScholar({
         <meshStandardMaterial color="#4a2d1b" roughness={0.58} />
       </mesh>
 
-      {/* Upholstered Lower Apron */}
+      {/* Upholstered Lower Apron - Warm Taupe / Greige */}
       <mesh position={[0, 0.34, 0]} castShadow={!isSoftwareGl} receiveShadow={!isSoftwareGl}>
         <boxGeometry args={[2.34, 0.14, 0.96]} />
-        <meshStandardMaterial color="#2f5649" roughness={0.82} />
+        <meshStandardMaterial color="#888076" roughness={0.86} />
       </mesh>
 
-      {/* 3 Plush Seat Cushions */}
+      {/* 3 Plush Seat Cushions - Warm Taupe / Mushroom Greige (Matched to Reference Image) */}
       {[-0.72, 0, 0.72].map((cx, i) => (
         <mesh
           key={i}
@@ -1485,11 +1496,11 @@ function SofaWithReadingScholar({
           receiveShadow={!isSoftwareGl}
         >
           <boxGeometry args={[0.7, 0.16, 0.84]} />
-          <meshStandardMaterial color="#376455" roughness={0.85} />
+          <meshStandardMaterial color="#9d9489" roughness={0.88} />
         </mesh>
       ))}
 
-      {/* Tufted Backrest + 3 Back Cushions */}
+      {/* Backrest + 3 Back Cushions - Warm Taupe Greige */}
       <mesh
         position={[0, 0.82, -0.39]}
         rotation={[-0.08, 0, 0]}
@@ -1497,7 +1508,7 @@ function SofaWithReadingScholar({
         receiveShadow={!isSoftwareGl}
       >
         <boxGeometry args={[2.32, 0.82, 0.22]} />
-        <meshStandardMaterial color="#2c5144" roughness={0.84} />
+        <meshStandardMaterial color="#8d847a" roughness={0.86} />
       </mesh>
       {[-0.71, 0, 0.71].map((cx, i) => (
         <mesh
@@ -1508,25 +1519,25 @@ function SofaWithReadingScholar({
           receiveShadow={!isSoftwareGl}
         >
           <boxGeometry args={[0.68, 0.56, 0.16]} />
-          <meshStandardMaterial color="#3b6b5b" roughness={0.86} />
+          <meshStandardMaterial color="#9c9388" roughness={0.88} />
         </mesh>
       ))}
 
-      {/* Rolled Left & Right Armrests */}
+      {/* Track Left & Right Armrests - Matching Warm Taupe Greige */}
       {[-1.12, 1.12].map((ax, i) => (
         <group key={i} position={[ax, 0.62, 0]}>
           <mesh castShadow={!isSoftwareGl} receiveShadow={!isSoftwareGl}>
             <boxGeometry args={[0.2, 0.46, 0.96]} />
-            <meshStandardMaterial color="#325c4e" roughness={0.84} />
+            <meshStandardMaterial color="#91887e" roughness={0.86} />
           </mesh>
           <mesh position={[0, 0.23, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow={!isSoftwareGl}>
             <cylinderGeometry args={[0.115, 0.115, 0.96, 16]} />
-            <meshStandardMaterial color="#3a6959" roughness={0.82} />
+            <meshStandardMaterial color="#9c9388" roughness={0.86} />
           </mesh>
         </group>
       ))}
 
-      {/* Cozy Accent Throw Pillows */}
+      {/* Contemporary Soft Accent Pillows */}
       <mesh
         position={[0.84, 0.68, -0.05]}
         rotation={[0.18, -0.35, 0.24]}
@@ -1534,7 +1545,7 @@ function SofaWithReadingScholar({
         castShadow={!isSoftwareGl}
       >
         <sphereGeometry args={[1, 16, 12]} />
-        <meshStandardMaterial color="#c88d42" roughness={0.88} />
+        <meshStandardMaterial color="#b4a999" roughness={0.88} />
       </mesh>
       <mesh
         position={[-0.88, 0.66, -0.06]}
@@ -1543,7 +1554,7 @@ function SofaWithReadingScholar({
         castShadow={!isSoftwareGl}
       >
         <sphereGeometry args={[1, 16, 12]} />
-        <meshStandardMaterial color="#9e4d3a" roughness={0.88} />
+        <meshStandardMaterial color="#6b7280" roughness={0.88} />
       </mesh>
 
       {/* ==================== 1B. SLEEPING ORANGE CAT ON RIGHT OF OLD MAN ==================== */}
@@ -1601,20 +1612,26 @@ function SofaWithReadingScholar({
           />
         </mesh>
 
-        {/* Seated Pinstripe Suit Trousers Pelvis + Dark Leather Belt */}
+        {/* Seated Midnight Navy Suit Trousers Pelvis + Black Leather Dress Belt with Silver Buckle */}
         <mesh position={[0, 0.58, -0.05]} material={suitJacketMat} castShadow={!isSoftwareGl}>
           <boxGeometry args={[0.38, 0.15, 0.3]} />
         </mesh>
+        {/* Dark Leather Dress Belt at Waistband */}
         <mesh position={[0, 0.65, 0.08]}>
-          <boxGeometry args={[0.35, 0.03, 0.06]} />
-          <meshStandardMaterial color="#161414" roughness={0.38} />
+          <boxGeometry args={[0.36, 0.034, 0.07]} />
+          <meshStandardMaterial color="#141312" roughness={0.34} />
         </mesh>
-        <mesh position={[0, 0.65, 0.114]}>
-          <boxGeometry args={[0.044, 0.034, 0.012]} />
-          <meshStandardMaterial color="#cbd5e1" metalness={0.86} roughness={0.22} />
+        {/* Polished Silver Chrome Belt Buckle */}
+        <mesh position={[0, 0.65, 0.118]}>
+          <boxGeometry args={[0.046, 0.034, 0.014]} />
+          <meshStandardMaterial color="#cbd5e1" metalness={0.88} roughness={0.2} />
+        </mesh>
+        <mesh position={[0, 0.65, 0.124]}>
+          <boxGeometry args={[0.008, 0.024, 0.008]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.92} roughness={0.16} />
         </mesh>
 
-        {/* Left & Right Tailored Pinstripe Suit Trousers + Charcoal Socks + Black Oxford Shoes */}
+        {/* Left & Right Tailored Navy Suit Trousers + Crisp Pressed Creases + Dark Socks + Oxford Shoes */}
         {[-0.105, 0.105].map((lx, idx) => (
           <group key={idx}>
             {/* Tailored Suit Thigh resting on sofa cushion */}
@@ -1626,6 +1643,14 @@ function SofaWithReadingScholar({
             >
               <capsuleGeometry args={[0.076, 0.3, 8, 14]} />
             </mesh>
+            {/* Crisp Center Pressed Crease along Thigh */}
+            <mesh
+              position={[lx * 1.02, 0.638, 0.17]}
+              rotation={[Math.PI / 2 - 0.06, idx === 0 ? 0.04 : -0.04, 0]}
+            >
+              <boxGeometry args={[0.006, 0.28, 0.008]} />
+              <meshStandardMaterial color="#293952" roughness={0.5} />
+            </mesh>
             {/* Pressed Suit Trouser Leg angling down to floor rug */}
             <mesh
               position={[lx * 1.08, 0.32, 0.42]}
@@ -1634,6 +1659,14 @@ function SofaWithReadingScholar({
               castShadow={!isSoftwareGl}
             >
               <capsuleGeometry args={[0.064, 0.34, 8, 14]} />
+            </mesh>
+            {/* Razor-Sharp Center Pressed Crease along Shin (Signature Tailoring from Photo) */}
+            <mesh
+              position={[lx * 1.08, 0.32, 0.472]}
+              rotation={[0.16, 0, 0]}
+            >
+              <boxGeometry args={[0.006, 0.32, 0.008]} />
+              <meshStandardMaterial color="#283750" roughness={0.5} />
             </mesh>
             {/* Crisp Trouser Hem Cuff */}
             <mesh
@@ -1646,29 +1679,41 @@ function SofaWithReadingScholar({
             {/* Charcoal Dress Sock */}
             <mesh position={[lx * 1.08, 0.115, 0.46]}>
               <cylinderGeometry args={[0.046, 0.046, 0.075, 10]} />
-              <meshStandardMaterial color="#111622" roughness={0.82} />
+              <meshStandardMaterial color="#11141d" roughness={0.82} />
             </mesh>
-            {/* Polished Black Leather Cap-Toe Oxford Dress Shoe */}
+            {/* Burnished Dark Espresso / Black Leather Oxford Dress Shoe */}
             <group position={[lx * 1.1, 0.055, 0.535]} rotation={[0, idx === 0 ? 0.05 : -0.05, 0]}>
               <mesh scale={[0.072, 0.05, 0.15]} castShadow={!isSoftwareGl}>
                 <sphereGeometry args={[1, 16, 12]} />
-                <meshStandardMaterial color="#141418" roughness={0.22} metalness={0.12} />
+                <meshStandardMaterial color="#161311" roughness={0.24} metalness={0.16} />
               </mesh>
+              {/* Polished Cap Toe */}
               <mesh position={[0, 0.008, 0.075]} scale={[0.062, 0.036, 0.065]}>
                 <sphereGeometry args={[1, 12, 10]} />
-                <meshStandardMaterial color="#0b0b0e" roughness={0.16} metalness={0.16} />
+                <meshStandardMaterial color="#0f0c0a" roughness={0.18} metalness={0.18} />
               </mesh>
+              {/* Welt Sole Edge */}
               <mesh position={[0, -0.032, 0]}>
                 <boxGeometry args={[0.126, 0.022, 0.258]} />
-                <meshStandardMaterial color="#09090b" roughness={0.56} />
+                <meshStandardMaterial color="#0a0807" roughness={0.65} />
+              </mesh>
+              {/* Heel Block */}
+              <mesh position={[0, -0.032, -0.075]}>
+                <boxGeometry args={[0.118, 0.026, 0.08]} />
+                <meshStandardMaterial color="#070605" roughness={0.7} />
+              </mesh>
+              {/* Lacing Eyestay & Dark Laces */}
+              <mesh position={[0, 0.034, 0.012]} rotation={[-0.32, 0, 0]}>
+                <boxGeometry args={[0.032, 0.012, 0.058]} />
+                <meshStandardMaterial color="#1c1714" roughness={0.4} />
               </mesh>
             </group>
           </group>
         ))}
 
-        {/* Upper Body Matched to Reference Portrait: Dark Pinstripe Suit + Open-Collar Light-Blue Striped Shirt */}
+        {/* Upper Body Matched to Reference Photo: Tailored Midnight Navy Suit + Crisp White Dress Shirt */}
         <group ref={upperBodyRef} position={[0, 0.68, -0.07]} rotation={[0.05, 0, 0]}>
-          {/* Tailored Pinstripe Suit Blazer Torso */}
+          {/* Tailored Navy Suit Blazer Torso */}
           <mesh position={[0, 0.22, 0]} material={suitJacketMat} castShadow={!isSoftwareGl}>
             <capsuleGeometry args={[0.188, 0.27, 10, 18]} />
           </mesh>
@@ -1686,13 +1731,13 @@ function SofaWithReadingScholar({
             </mesh>
           ))}
 
-          {/* Finely Striped Light-Blue & White Dress Shirt Chest (No Tie — Open Top Collar!) */}
+          {/* Crisp Solid White Poplin Dress Shirt Chest (Open Collar, No Tie) */}
           <mesh position={[0, 0.315, 0.146]} rotation={[-0.16, 0, 0]}>
             <boxGeometry args={[0.138, 0.22, 0.058]} />
-            <meshStandardMaterial map={stripedShirtTex} roughness={0.5} />
+            <meshStandardMaterial map={shirtTex} roughness={0.48} />
           </mesh>
 
-          {/* Open Top Collar Neck V-Skin (Unbuttoned Top Shirt Button like Reference Photo) */}
+          {/* Open Top Collar Neck V-Skin */}
           <mesh position={[0, 0.402, 0.124]} rotation={[-0.22, 0, 0]}>
             <coneGeometry args={[0.032, 0.072, 3]} />
             <meshStandardMaterial color="#d49a74" roughness={0.6} />
@@ -1701,7 +1746,7 @@ function SofaWithReadingScholar({
           {/* Center Button Placket + Mother-of-Pearl Shirt Buttons */}
           <mesh position={[0.004, 0.285, 0.166]} rotation={[-0.16, 0, 0]}>
             <boxGeometry args={[0.022, 0.15, 0.012]} />
-            <meshStandardMaterial map={stripedShirtTex} roughness={0.48} />
+            <meshStandardMaterial map={shirtTex} roughness={0.46} />
           </mesh>
           {[0.325, 0.26, 0.195].map((by, i) => (
             <mesh key={i} position={[0.004, by, 0.174]} rotation={[Math.PI / 2 - 0.16, 0, 0]}>
@@ -1713,26 +1758,24 @@ function SofaWithReadingScholar({
           {/* Open-Neck Spread Shirt Collar Stand & Left/Right Collar Points */}
           {[-0.044, 0.044].map((cx, i) => (
             <group key={i}>
-              {/* Inner Open Placket Fold */}
               <mesh
                 position={[cx * 0.56, 0.39, 0.136]}
                 rotation={[-0.18, 0, i === 0 ? 0.22 : -0.22]}
               >
                 <boxGeometry args={[0.024, 0.075, 0.016]} />
-                <meshStandardMaterial map={stripedShirtTex} roughness={0.46} />
+                <meshStandardMaterial map={shirtTex} roughness={0.46} />
               </mesh>
-              {/* Structured Spread Collar Wing */}
               <mesh
                 position={[cx, 0.428, 0.095]}
                 rotation={[0.2, i === 0 ? 0.28 : -0.28, i === 0 ? -0.26 : 0.26]}
               >
                 <boxGeometry args={[0.056, 0.052, 0.02]} />
-                <meshStandardMaterial map={stripedShirtTex} roughness={0.45} />
+                <meshStandardMaterial map={shirtTex} roughness={0.45} />
               </mesh>
             </group>
           ))}
 
-          {/* Sharp Tailored Notched Suit Lapels (Clean Understated Tailoring like Reference Photo) */}
+          {/* Sharp Tailored Notched Suit Lapels (Clean Tailoring like Reference Photo) */}
           {[-0.078, 0.078].map((sx, i) => (
             <group key={i}>
               <mesh
@@ -1756,7 +1799,7 @@ function SofaWithReadingScholar({
           {[0.145, 0.078].map((by, i) => (
             <mesh key={i} position={[0, by, 0.186]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[0.0105, 0.0105, 0.009, 12]} />
-              <meshStandardMaterial color="#25201e" roughness={0.36} metalness={0.15} />
+              <meshStandardMaterial color="#1a1e26" roughness={0.36} metalness={0.15} />
             </mesh>
           ))}
 
@@ -2016,7 +2059,7 @@ function SofaWithReadingScholar({
             </group>
           </group>
 
-          {/* ==================== LEFT SUIT SLEEVE (4 HORN CUFF BUTTONS + WHITE SHIRT CUFF) ==================== */}
+          {/* ==================== LEFT SUIT SLEEVE (4 HORN CUFF BUTTONS + CRISP WHITE SHIRT CUFF + HAND CUPPING BOOK) ==================== */}
           <group position={[-0.215, 0.34, 0.02]}>
             <mesh
               position={[-0.02, -0.11, 0.06]}
@@ -2026,11 +2069,11 @@ function SofaWithReadingScholar({
             >
               <capsuleGeometry args={[0.057, 0.18, 8, 12]} />
             </mesh>
-            <group ref={leftArmRef} position={[-0.04, -0.21, 0.14]} rotation={[-0.78, 0.25, -0.24]}>
+            <group ref={leftArmRef} position={[-0.04, -0.21, 0.14]} rotation={[-0.76, 0.22, -0.18]}>
               <mesh position={[0, -0.09, 0]} material={suitJacketMat} castShadow={!isSoftwareGl}>
                 <capsuleGeometry args={[0.049, 0.152, 8, 12]} />
               </mesh>
-              {/* 4 Signature Dark Horn Sleeve Cuff Buttons (matching Reference Photo!) */}
+              {/* 4 Dark Horn Sleeve Cuff Buttons (matching Reference Photo) */}
               {[-0.118, -0.13, -0.142, -0.154].map((by, bi) => (
                 <mesh
                   key={bi}
@@ -2041,20 +2084,33 @@ function SofaWithReadingScholar({
                   <meshStandardMaterial color="#28221e" roughness={0.38} />
                 </mesh>
               ))}
-              {/* Prominent Crisp Light-Blue/White Dress Shirt Cuff */}
+              {/* Crisp Solid White Dress Shirt Cuff */}
               <mesh position={[0, -0.175, 0]}>
                 <cylinderGeometry args={[0.044, 0.042, 0.036, 14]} />
-                <meshStandardMaterial map={stripedShirtTex} roughness={0.44} />
+                <meshStandardMaterial map={shirtTex} roughness={0.44} />
               </mesh>
-              {/* Left Hand Cradling Book */}
-              <mesh position={[0.01, -0.216, 0.01]} scale={[0.92, 1.12, 0.72]}>
-                <sphereGeometry args={[0.044, 12, 10]} />
-                <meshStandardMaterial color="#d89f79" roughness={0.58} />
-              </mesh>
+              {/* Left Hand Cupping Book Cover with Thumb Bracing Page Margin */}
+              <group position={[0.01, -0.216, 0.01]} rotation={[0.2, 0.18, -0.2]}>
+                {/* Palm / Hand */}
+                <mesh scale={[0.92, 1.12, 0.72]}>
+                  <sphereGeometry args={[0.042, 12, 10]} />
+                  <meshStandardMaterial color="#d89f79" roughness={0.58} />
+                </mesh>
+                {/* Cupped Fingers under Left Book Cover */}
+                <mesh position={[0.015, -0.028, 0.012]} rotation={[0.2, 0, 0]}>
+                  <boxGeometry args={[0.034, 0.022, 0.042]} />
+                  <meshStandardMaterial color="#d69c76" roughness={0.58} />
+                </mesh>
+                {/* Left Thumb Bracing Bottom Margin of Open Page */}
+                <mesh position={[0.018, 0.024, 0.022]} rotation={[-0.32, 0.38, -0.15]}>
+                  <capsuleGeometry args={[0.0085, 0.028, 6, 8]} />
+                  <meshStandardMaterial color="#daa07a" roughness={0.56} />
+                </mesh>
+              </group>
             </group>
           </group>
 
-          {/* ==================== RIGHT SUIT SLEEVE + EXECUTIVE BLACK & SILVER PEN ==================== */}
+          {/* ==================== RIGHT SUIT SLEEVE (4 HORN CUFF BUTTONS + CRISP WHITE SHIRT CUFF + HAND CUPPING BOOK) ==================== */}
           <group position={[0.215, 0.34, 0.02]}>
             <mesh
               position={[0.02, -0.11, 0.06]}
@@ -2064,11 +2120,11 @@ function SofaWithReadingScholar({
             >
               <capsuleGeometry args={[0.057, 0.18, 8, 12]} />
             </mesh>
-            <group ref={rightArmRef} position={[0.04, -0.21, 0.14]} rotation={[-0.78, -0.25, 0.24]}>
+            <group ref={rightArmRef} position={[0.04, -0.21, 0.14]} rotation={[-0.76, -0.22, 0.18]}>
               <mesh position={[0, -0.09, 0]} material={suitJacketMat} castShadow={!isSoftwareGl}>
                 <capsuleGeometry args={[0.049, 0.152, 8, 12]} />
               </mesh>
-              {/* 4 Dark Horn Sleeve Cuff Buttons */}
+              {/* 4 Dark Horn Sleeve Cuff Buttons (matching Reference Photo) */}
               {[-0.118, -0.13, -0.142, -0.154].map((by, bi) => (
                 <mesh
                   key={bi}
@@ -2079,77 +2135,50 @@ function SofaWithReadingScholar({
                   <meshStandardMaterial color="#28221e" roughness={0.38} />
                 </mesh>
               ))}
-              {/* Prominent Crisp Dress Shirt Cuff */}
+              {/* Crisp Solid White Dress Shirt Cuff */}
               <mesh position={[0, -0.175, 0]}>
                 <cylinderGeometry args={[0.044, 0.042, 0.036, 14]} />
-                <meshStandardMaterial map={stripedShirtTex} roughness={0.44} />
+                <meshStandardMaterial map={shirtTex} roughness={0.44} />
               </mesh>
-              {/* Right Hand + Articulated Fingers Holding Executive Pen */}
-              <group position={[-0.01, -0.216, 0.01]}>
+              {/* Right Hand Cupping Book Cover with Thumb Bracing Page Margin */}
+              <group position={[-0.01, -0.216, 0.01]} rotation={[0.2, -0.18, 0.2]}>
+                {/* Palm / Hand */}
                 <mesh scale={[0.92, 1.12, 0.72]}>
-                  <sphereGeometry args={[0.044, 12, 10]} />
+                  <sphereGeometry args={[0.042, 12, 10]} />
                   <meshStandardMaterial color="#d89f79" roughness={0.58} />
                 </mesh>
-                {/* Sleek Black & Silver Executive Pen (from Reference Portrait!) */}
-                <group position={[-0.018, -0.012, 0.018]} rotation={[0.95, 0.32, -0.45]}>
-                  {/* Glossy Black Lacquer Barrel */}
-                  <mesh>
-                    <cylinderGeometry args={[0.0048, 0.0045, 0.135, 10]} />
-                    <meshStandardMaterial
-                      color="#101217"
-                      roughness={0.18}
-                      metalness={0.35}
-                    />
-                  </mesh>
-                  {/* Brushed Chrome Center Ring & Clip */}
-                  <mesh position={[0, 0.012, 0]}>
-                    <cylinderGeometry args={[0.0052, 0.0052, 0.008, 10]} />
-                    <meshStandardMaterial
-                      color="#e2e8f0"
-                      metalness={0.92}
-                      roughness={0.16}
-                    />
-                  </mesh>
-                  <mesh position={[0.0055, 0.042, 0]}>
-                    <boxGeometry args={[0.0022, 0.038, 0.003]} />
-                    <meshStandardMaterial
-                      color="#e2e8f0"
-                      metalness={0.92}
-                      roughness={0.16}
-                    />
-                  </mesh>
-                  {/* Tapered Silver Nib Cone */}
-                  <mesh position={[0, -0.078, 0]} rotation={[Math.PI, 0, 0]}>
-                    <coneGeometry args={[0.0045, 0.022, 10]} />
-                    <meshStandardMaterial
-                      color="#e2e8f0"
-                      metalness={0.92}
-                      roughness={0.16}
-                    />
-                  </mesh>
-                </group>
+                {/* Cupped Fingers under Right Book Cover */}
+                <mesh position={[-0.015, -0.028, 0.012]} rotation={[0.2, 0, 0]}>
+                  <boxGeometry args={[0.034, 0.022, 0.042]} />
+                  <meshStandardMaterial color="#d69c76" roughness={0.58} />
+                </mesh>
+                {/* Right Thumb Bracing Bottom Margin of Open Page */}
+                <mesh position={[-0.018, 0.024, 0.022]} rotation={[-0.32, -0.38, 0.15]}>
+                  <capsuleGeometry args={[0.0085, 0.028, 6, 8]} />
+                  <meshStandardMaterial color="#daa07a" roughness={0.56} />
+                </mesh>
               </group>
             </group>
           </group>
         </group>
 
-        {/* ==================== 3. OPEN HARDCOVER BOOK ==================== */}
+        {/* ==================== 3. OPEN HARDCOVER BOOK (SLATE CHARCOAL COVER MATCHING PHOTO) ==================== */}
         <group
           ref={bookGroupRef}
-          position={[0, 0.9, 0.3]}
+          position={[0, 0.88, 0.28]}
           rotation={[0.62, 0, 0]}
         >
           {/* Spine */}
           <mesh position={[0, -0.012, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.022, 0.022, 0.28, 12]} />
-            <meshStandardMaterial color="#58261b" roughness={0.65} />
+            <meshStandardMaterial color="#2d3339" roughness={0.65} />
           </mesh>
 
           {/* Left Cover & Printed Page Block */}
-          <group rotation={[0, 0, 0.2]}>
+          <group rotation={[0, 0, 0.22]}>
             <mesh position={[-0.105, -0.008, 0]} castShadow={!isSoftwareGl}>
               <boxGeometry args={[0.21, 0.012, 0.28]} />
-              <meshStandardMaterial color="#6b2d1f" roughness={0.62} />
+              <meshStandardMaterial color="#373c42" roughness={0.65} />
             </mesh>
             <mesh position={[-0.1, 0.008, 0]}>
               <boxGeometry args={[0.195, 0.022, 0.265]} />
@@ -2158,10 +2187,10 @@ function SofaWithReadingScholar({
           </group>
 
           {/* Right Cover & Printed Page Block */}
-          <group rotation={[0, 0, -0.2]}>
+          <group rotation={[0, 0, -0.22]}>
             <mesh position={[0.105, -0.008, 0]} castShadow={!isSoftwareGl}>
               <boxGeometry args={[0.21, 0.012, 0.28]} />
-              <meshStandardMaterial color="#6b2d1f" roughness={0.62} />
+              <meshStandardMaterial color="#373c42" roughness={0.65} />
             </mesh>
             <mesh position={[0.1, 0.008, 0]}>
               <boxGeometry args={[0.195, 0.022, 0.265]} />
@@ -2787,14 +2816,13 @@ export function OfficeStudyScene({
     () => getBookEdgePagesTexture(maxAniso),
     [maxAniso],
   );
-  const pinstripeSuitTex = useMemo(
-    () => getPinstripeSuitTexture(maxAniso),
+  const navySuitTex = useMemo(() => getNavySuitTexture(maxAniso), [maxAniso]);
+  const crispWhiteShirtTex = useMemo(
+    () => getCrispWhiteShirtTexture(maxAniso),
     [maxAniso],
   );
-  const stripedShirtTex = useMemo(
-    () => getStripedDressShirtTexture(maxAniso),
-    [maxAniso],
-  );
+  const pinstripeSuitTex = navySuitTex;
+  const stripedShirtTex = crispWhiteShirtTex;
   const shadowTex = useMemo(() => getContactShadowTexture(), []);
 
   const nightMix = useRef(theme === 'dark' ? 1 : 0);
@@ -3139,6 +3167,8 @@ export function OfficeStudyScene({
         position={[-1.18, 0, -0.62]}
         rotation={[0, 0.24, 0]}
         bookPageTex={bookPageTex}
+        navySuitTex={navySuitTex}
+        crispWhiteShirtTex={crispWhiteShirtTex}
         pinstripeSuitTex={pinstripeSuitTex}
         stripedShirtTex={stripedShirtTex}
         shadowTex={shadowTex}
