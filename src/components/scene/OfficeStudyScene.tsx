@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import gsap from 'gsap';
 import {
   getBookCoverTexture,
   getBookEdgePagesTexture,
@@ -8,6 +9,7 @@ import {
   getBookSpineTexture,
   getContactShadowTexture,
   getCrispWhiteShirtTexture,
+  getHerbariumSignTexture,
   getMonitorScreenTexture,
   getNavySuitTexture,
   getPinstripeSuitTexture,
@@ -25,6 +27,7 @@ import {
 } from '../../data/booksData';
 import type {
   BookShelfSortMode,
+  CameraVector3,
   CustomCameraFocus,
   FeaturedBookId,
   HoveredStudyItem,
@@ -48,6 +51,10 @@ interface OfficeStudySceneProps {
   onSelectFeaturedBook: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
   onOpenScholarChat: () => void;
   onOpenSupportHandover?: (topic?: string) => void;
+  openChatUI?: (bookTitle: string) => void;
+  onOpenBookListModal?: () => void;
+  controls?: { target: THREE.Vector3; update: () => void };
+  isGsapCamAnimatingRef?: React.MutableRefObject<boolean>;
 }
 
 interface BookSpec {
@@ -331,6 +338,7 @@ function InteractiveShelfBook({
   onStartHover,
   onEndHover,
   onFocusBooks,
+  onFocusBook,
 }: {
   book: BookSpec;
   targetX: number;
@@ -345,6 +353,14 @@ function InteractiveShelfBook({
   ) => void;
   onEndHover: (id: string) => void;
   onFocusBooks: () => void;
+  onFocusBook?: (
+    mesh: THREE.Object3D,
+    bookInfo: {
+      title: string;
+      cameraPos: CameraVector3;
+      targetPos: CameraVector3;
+    },
+  ) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const coverMatRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -374,7 +390,9 @@ function InteractiveShelfBook({
 
     if (groupRef.current) {
       groupRef.current.position.x = animX.current;
-      groupRef.current.position.z = 0.02 + m * 0.075;
+      if (!gsap.isTweening(groupRef.current.position)) {
+        groupRef.current.position.z = 0.02 + m * 0.075;
+      }
       groupRef.current.rotation.z = animTilt.current;
       const sc = 1 + m * 0.045;
       groupRef.current.scale.set(sc, sc, sc);
@@ -418,7 +436,42 @@ function InteractiveShelfBook({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onFocusBooks();
+        if (groupRef.current) {
+          const origZ = groupRef.current.position.z;
+          gsap.to(groupRef.current.position, {
+            z: origZ + 0.15,
+            duration: 0.5,
+            yoyo: true,
+            repeat: 1,
+            ease: 'power2.out',
+            onComplete: () => {
+              if (groupRef.current) {
+                groupRef.current.position.z = origZ;
+              }
+            },
+          });
+          if (onFocusBook) {
+            const worldPos = new THREE.Vector3();
+            groupRef.current.getWorldPosition(worldPos);
+            onFocusBook(groupRef.current, {
+              title: book.title,
+              cameraPos: {
+                x: Number((worldPos.x + 0.28).toFixed(3)),
+                y: Number((worldPos.y + 0.08).toFixed(3)),
+                z: Number((worldPos.z + 1.28).toFixed(3)),
+              },
+              targetPos: {
+                x: Number(worldPos.x.toFixed(3)),
+                y: Number(worldPos.y.toFixed(3)),
+                z: Number(worldPos.z.toFixed(3)),
+              },
+            });
+          } else {
+            onFocusBooks();
+          }
+        } else {
+          onFocusBooks();
+        }
       }}
     >
       <mesh castShadow={!isSoftwareGl}>
@@ -474,6 +527,7 @@ function FeaturedCoverBook({
   onStartHover,
   onEndHover,
   onSelectBook,
+  onFocusBook,
 }: {
   entry: FeaturedBookEntry;
   slotIndex: number;
@@ -489,6 +543,14 @@ function FeaturedCoverBook({
   ) => void;
   onEndHover: (id: string) => void;
   onSelectBook: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
+  onFocusBook?: (
+    mesh: THREE.Object3D,
+    bookInfo: {
+      title: string;
+      cameraPos: CameraVector3;
+      targetPos: CameraVector3;
+    },
+  ) => void;
 }) {
   const standGroupRef = useRef<THREE.Group>(null);
   const bookBodyRef = useRef<THREE.Group>(null);
@@ -565,7 +627,9 @@ function FeaturedCoverBook({
 
     if (bookBodyRef.current) {
       bookBodyRef.current.position.y = 0.018 + bookH * 0.5 + m * 0.018;
-      bookBodyRef.current.position.z = 0.012 + m * 0.062;
+      if (!gsap.isTweening(bookBodyRef.current.position)) {
+        bookBodyRef.current.position.z = 0.012 + m * 0.062;
+      }
       bookBodyRef.current.rotation.x = THREE.MathUtils.lerp(-0.11, -0.025, m);
       const sc = 1 + m * 0.055;
       bookBodyRef.current.scale.set(sc, sc, sc);
@@ -606,7 +670,15 @@ function FeaturedCoverBook({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onSelectBook(entry.id, computeFeaturedBookCameraFocus(slotIndex));
+        const focus = computeFeaturedBookCameraFocus(slotIndex);
+        onSelectBook(entry.id, focus);
+        if (onFocusBook && bookBodyRef.current) {
+          onFocusBook(bookBodyRef.current, {
+            title: entry.title,
+            cameraPos: focus.cameraPos,
+            targetPos: focus.targetPos,
+          });
+        }
       }}
     >
       {/* 1. Walnut & Brushed-Brass Gallery Book Easel */}
@@ -726,6 +798,9 @@ function WalnutBookshelf({
   onEndHover,
   onFocusBooks,
   onSelectFeaturedBook,
+  onFocusBook,
+  onOpenBookListModal,
+  onFocusHerbariumCase,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
@@ -747,7 +822,28 @@ function WalnutBookshelf({
   onEndHover: (id: string) => void;
   onFocusBooks: () => void;
   onSelectFeaturedBook?: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
+  onFocusBook?: (
+    mesh: THREE.Object3D,
+    bookInfo: {
+      title: string;
+      cameraPos: CameraVector3;
+      targetPos: CameraVector3;
+    },
+  ) => void;
+  onOpenBookListModal?: () => void;
+  onFocusHerbariumCase?: () => void;
 }) {
+  const isHerbariumCase = caseName === 'North Herbarium Case';
+  const [isCaseTargeted, setIsCaseTargeted] = useState(false);
+  const tierGroupsRef = useRef<(THREE.Group | null)[]>([]);
+  const floatingBadgeRef = useRef<THREE.Group>(null);
+  const caseGroupRef = useRef<THREE.Group>(null);
+
+  const herbariumSignTex = useMemo(
+    () => (isHerbariumCase ? getHerbariumSignTexture(maxAniso) : null),
+    [isHerbariumCase, maxAniso],
+  );
+
   const globeShelfIdx = withGlobe ? (featuredShowcase ? 3 : 2) : null;
   const shelves = useMemo(
     () => buildShelfBooks(seed, 1.66, globeShelfIdx),
@@ -764,8 +860,84 @@ function WalnutBookshelf({
 
   const shelfY = [0.22, 0.78, 1.34, 1.9, 2.46];
 
+  // Smooth floating bobbing animation for the 3D herbarium case banner
+  useFrame(({ clock }) => {
+    if (floatingBadgeRef.current) {
+      floatingBadgeRef.current.position.y =
+        2.92 + Math.sin(clock.elapsedTime * 2.6) * 0.022;
+    }
+  });
+
+  // Interactive animation on bookshelf & triggering book list modal
+  const handleCaseInteract = useCallback(() => {
+    // 1. Staggered tactile wave pulse on the 4 book tiers
+    tierGroupsRef.current.forEach((grp, idx) => {
+      if (!grp) return;
+      gsap.killTweensOf(grp.position);
+      const baseZ = 0;
+      gsap.to(grp.position, {
+        z: 0.13,
+        duration: 0.38,
+        delay: idx * 0.07,
+        yoyo: true,
+        repeat: 1,
+        ease: 'power2.out',
+        onComplete: () => {
+          if (grp) grp.position.z = baseZ;
+        },
+      });
+    });
+
+    // 2. Camera glide toward North Herbarium Case & display book list modal
+    if (onFocusHerbariumCase) {
+      onFocusHerbariumCase();
+    } else if (onOpenBookListModal) {
+      onOpenBookListModal();
+    }
+  }, [onFocusHerbariumCase, onOpenBookListModal]);
+
   return (
-    <group position={position} rotation={rotation}>
+    <group
+      ref={caseGroupRef}
+      position={position}
+      rotation={rotation}
+      onPointerOver={
+        isHerbariumCase
+          ? (e) => {
+              e.stopPropagation();
+              setIsCaseTargeted(true);
+              if (caseGroupRef.current) {
+                onStartHover(caseGroupRef.current, 2.7, {
+                  id: 'north-herbarium-case',
+                  kind: 'book',
+                  category: 'Library Archive',
+                  title: 'North Herbarium Case',
+                  subtitle: '4 Walnut Tiers · 24 Curated Volumes',
+                  detail: 'Targeted: Click to inspect Book List Catalog & Study Notes',
+                  accentColor: '#10b981',
+                });
+              }
+            }
+          : undefined
+      }
+      onPointerOut={
+        isHerbariumCase
+          ? (e) => {
+              e.stopPropagation();
+              setIsCaseTargeted(false);
+              onEndHover('north-herbarium-case');
+            }
+          : undefined
+      }
+      onClick={
+        isHerbariumCase
+          ? (e) => {
+              e.stopPropagation();
+              handleCaseInteract();
+            }
+          : undefined
+      }
+    >
       {/* Ground Contact Shadow */}
       <mesh position={[0, 0.018, 0.08]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[2.15, 0.78]} />
@@ -804,6 +976,91 @@ function WalnutBookshelf({
         <boxGeometry args={[1.96, 0.09, 0.46]} />
         <meshStandardMaterial color="#3b2314" roughness={0.52} />
       </mesh>
+
+      {/* Interactive Luminous Rim Highlight when Case is Targeted */}
+      {isCaseTargeted && isHerbariumCase && (
+        <group>
+          {/* Crown Molding Glowing Trim */}
+          <mesh position={[0, 2.68, 0.02]}>
+            <boxGeometry args={[2.02, 0.12, 0.49]} />
+            <meshBasicMaterial
+              color="#38bdf8"
+              transparent
+              opacity={0.32}
+              side={THREE.BackSide}
+              depthWrite={false}
+            />
+          </mesh>
+          {/* Uprights Glowing Trim */}
+          {[-0.88, 0.88].map((ux, i) => (
+            <mesh key={i} position={[ux, 1.38, 0]}>
+              <boxGeometry args={[0.09, 2.58, 0.43]} />
+              <meshBasicMaterial
+                color="#38bdf8"
+                transparent
+                opacity={0.25}
+                side={THREE.BackSide}
+                depthWrite={false}
+              />
+            </mesh>
+          ))}
+        </group>
+      )}
+
+      {/* 3D Floating Interactive Sign Plate above Crown Molding */}
+      {isHerbariumCase && herbariumSignTex && (
+        <group
+          ref={floatingBadgeRef}
+          position={[0, 2.92, 0.14]}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCaseInteract();
+          }}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setIsCaseTargeted(true);
+          }}
+        >
+          {/* Dark Walnut Plinth Card */}
+          <mesh position={[0, 0, -0.006]}>
+            <boxGeometry args={[1.64, 0.44, 0.02]} />
+            <meshStandardMaterial color="#142820" metalness={0.35} roughness={0.5} />
+          </mesh>
+          {/* Brushed Brass Border Trim */}
+          <mesh position={[0, 0, -0.002]}>
+            <boxGeometry args={[1.68, 0.48, 0.012]} />
+            <meshStandardMaterial color="#f59e0b" metalness={0.82} roughness={0.25} />
+          </mesh>
+          {/* Halo Glow behind Badge when Targeted */}
+          {isCaseTargeted && (
+            <mesh position={[0, 0, -0.012]}>
+              <planeGeometry args={[1.82, 0.62]} />
+              <meshBasicMaterial
+                color="#38bdf8"
+                transparent
+                opacity={0.42}
+                depthWrite={false}
+              />
+            </mesh>
+          )}
+          {/* Crisp Procedural Sign Face */}
+          <mesh position={[0, 0, 0.006]}>
+            <planeGeometry args={[1.62, 0.42]} />
+            <meshBasicMaterial map={herbariumSignTex} transparent />
+          </mesh>
+          {/* Suspension Brass Support Rods */}
+          {[-0.55, 0.55].map((rx, i) => (
+            <mesh key={i} position={[rx, -0.22, -0.005]}>
+              <cylinderGeometry args={[0.008, 0.008, 0.24, 10]} />
+              <meshStandardMaterial
+                color="#f59e0b"
+                metalness={0.85}
+                roughness={0.22}
+              />
+            </mesh>
+          ))}
+        </group>
+      )}
 
       {/* Horizontal Shelves */}
       {shelfY.map((sy, idx) => (
@@ -867,6 +1124,7 @@ function WalnutBookshelf({
                     onStartHover={onStartHover}
                     onEndHover={onEndHover}
                     onSelectBook={onSelectFeaturedBook}
+                    onFocusBook={onFocusBook}
                   />
                 );
               })}
@@ -876,7 +1134,12 @@ function WalnutBookshelf({
 
         const posMap = sortedMaps[sIdx];
         return (
-          <group key={sIdx}>
+          <group
+            key={sIdx}
+            ref={(el) => {
+              tierGroupsRef.current[sIdx] = el;
+            }}
+          >
             {row.map((b) => {
               const target = posMap.get(b.id) ?? { x: b.x, tilt: b.tilt };
               return (
@@ -891,6 +1154,7 @@ function WalnutBookshelf({
                   onStartHover={onStartHover}
                   onEndHover={onEndHover}
                   onFocusBooks={onFocusBooks}
+                  onFocusBook={onFocusBook}
                 />
               );
             })}
@@ -2801,8 +3065,151 @@ export function OfficeStudyScene({
   onSelectFeaturedBook,
   onOpenScholarChat,
   onOpenSupportHandover,
+  openChatUI,
+  onOpenBookListModal,
+  controls,
+  isGsapCamAnimatingRef,
 }: OfficeStudySceneProps) {
   const { gl, camera, size, invalidate } = useThree();
+
+  /**
+   * GSAP Camera Glide & Bookshelf Focus for the North Herbarium Case:
+   * Glides camera to [-3.15, 1.75, -1.65] looking at [-4.25, 1.45, -3.52],
+   * then opens the Book List Modal on arrival.
+   */
+  const focusOnHerbariumCase = useCallback(() => {
+    if (isGsapCamAnimatingRef) {
+      isGsapCamAnimatingRef.current = true;
+    }
+
+    gsap.killTweensOf(camera.position);
+    if (controls) {
+      gsap.killTweensOf(controls.target);
+    }
+
+    // 1. Animate camera position toward North Herbarium Case
+    gsap.to(camera.position, {
+      x: -3.15,
+      y: 1.75,
+      z: -1.65,
+      duration: 1.35,
+      ease: 'power2.inOut',
+    });
+
+    if (controls) {
+      gsap.to(controls.target, {
+        x: -4.25,
+        y: 1.45,
+        z: -3.52,
+        duration: 1.35,
+        ease: 'power2.inOut',
+        onUpdate: () => controls.update(),
+        onComplete: () => {
+          if (isGsapCamAnimatingRef) {
+            isGsapCamAnimatingRef.current = false;
+          }
+          if (onOpenBookListModal) {
+            onOpenBookListModal();
+          }
+        },
+      });
+    } else {
+      gsap.to(camera.position, {
+        onComplete: () => {
+          if (isGsapCamAnimatingRef) {
+            isGsapCamAnimatingRef.current = false;
+          }
+          if (onOpenBookListModal) {
+            onOpenBookListModal();
+          }
+        },
+      });
+    }
+  }, [camera, controls, isGsapCamAnimatingRef, onOpenBookListModal]);
+
+  /**
+   * GSAP Book Focus & Pull-Out Interaction:
+   * 1. Animates camera position to bookInfo.cameraPos (duration 1.5s, power2.inOut)
+   * 2. Animates controls.target to bookInfo.targetPos (duration 1.5s, power2.inOut)
+   *    updating camera lookAt each tick and opening Scholar Chat on completion
+   * 3. Animates book mesh position along Z (+0.15 forward pulse, duration 0.5s, yoyo: true, repeat: 1)
+   */
+  const focusOnBook = useCallback(
+    (
+      bookMesh: THREE.Object3D,
+      bookInfo: {
+        title: string;
+        cameraPos: CameraVector3;
+        targetPos: CameraVector3;
+      },
+    ) => {
+      if (isGsapCamAnimatingRef) {
+        isGsapCamAnimatingRef.current = true;
+      }
+
+      gsap.killTweensOf(camera.position);
+      if (controls) {
+        gsap.killTweensOf(controls.target);
+      }
+      if (bookMesh) {
+        gsap.killTweensOf(bookMesh.position);
+      }
+
+      // 1. Animate vị trí Camera
+      gsap.to(camera.position, {
+        x: bookInfo.cameraPos.x,
+        y: bookInfo.cameraPos.y,
+        z: bookInfo.cameraPos.z,
+        duration: 1.5,
+        ease: 'power2.inOut',
+      });
+
+      if (controls) {
+        gsap.to(controls.target, {
+          x: bookInfo.targetPos.x,
+          y: bookInfo.targetPos.y,
+          z: bookInfo.targetPos.z,
+          duration: 1.5,
+          ease: 'power2.inOut',
+          onUpdate: () => controls.update(),
+          onComplete: () => {
+            if (isGsapCamAnimatingRef) {
+              isGsapCamAnimatingRef.current = false;
+            }
+            if (openChatUI) {
+              openChatUI(bookInfo.title);
+            }
+          },
+        });
+      } else {
+        gsap.to(camera.position, {
+          onComplete: () => {
+            if (isGsapCamAnimatingRef) {
+              isGsapCamAnimatingRef.current = false;
+            }
+            if (openChatUI) {
+              openChatUI(bookInfo.title);
+            }
+          },
+        });
+      }
+
+      if (bookMesh) {
+        const origZ = bookMesh.position.z;
+        gsap.to(bookMesh.position, {
+          z: origZ + 0.15,
+          duration: 0.5,
+          yoyo: true,
+          repeat: 1,
+          ease: 'power2.out',
+          onComplete: () => {
+            bookMesh.position.z = origZ;
+          },
+        });
+      }
+    },
+    [camera, controls, isGsapCamAnimatingRef, openChatUI],
+  );
   const maxAniso = useMemo(
     () => Math.min(8, gl.capabilities.getMaxAnisotropy()),
     [gl],
@@ -3122,6 +3529,7 @@ export function OfficeStudyScene({
         onEndHover={handleEndHover}
         onFocusBooks={() => onSelectOfficeView('office-books')}
         onSelectFeaturedBook={onSelectFeaturedBook}
+        onFocusBook={focusOnBook}
       />
 
       {/* Back-Left Bookshelf */}
@@ -3138,6 +3546,9 @@ export function OfficeStudyScene({
         onStartHover={handleStartHover}
         onEndHover={handleEndHover}
         onFocusBooks={() => onSelectOfficeView('office-books')}
+        onFocusBook={focusOnBook}
+        onOpenBookListModal={onOpenBookListModal}
+        onFocusHerbariumCase={focusOnHerbariumCase}
       />
 
       {/* Left-Wall Library Bookshelf */}
@@ -3156,6 +3567,7 @@ export function OfficeStudyScene({
         onStartHover={handleStartHover}
         onEndHover={handleEndHover}
         onFocusBooks={() => onSelectOfficeView('office-books')}
+        onFocusBook={focusOnBook}
       />
 
       {/* Potted Conservatory Plants */}

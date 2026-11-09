@@ -17,6 +17,8 @@ import { ScholarTalkLabel } from './components/ScholarTalkLabel';
 import { ScholarChatModal } from './components/ScholarChatModal';
 import { SupportHandoverModal } from './components/SupportHandoverModal';
 import { FeaturedBookOverlay } from './components/FeaturedBookOverlay';
+import { BookshelfBookListModal } from './components/BookshelfBookListModal';
+import type { HerbariumBookItem } from './data/herbariumBooksData';
 import {
   computeFeaturedBookCameraFocus,
   getSortedFeaturedBooks,
@@ -59,6 +61,7 @@ export default function App() {
   const [scholarSpeaking, setScholarSpeaking] = useState(false);
   const [supportHandoverOpen, setSupportHandoverOpen] = useState(false);
   const [supportHandoverTopic, setSupportHandoverTopic] = useState('');
+  const [bookshelfModalOpen, setBookshelfModalOpen] = useState(false);
   const [scholarPointerEngaged, setScholarPointerEngaged] = useState(false);
   const [scholarLabelEngaged, setScholarLabelEngaged] = useState(false);
   const [shelfSortMode, setShelfSortMode] =
@@ -230,8 +233,55 @@ export default function App() {
     }));
   }, []);
 
+  const handleOpenChatForBook = useCallback((bookTitle: string) => {
+    setShowWelcomeModal(false);
+    setSidebarOpen(false);
+    setHoveredStudyItem(null);
+    setSelectedBookId(null);
+    setCustomCameraFocus(null);
+    setScholarChatOpen(true);
+    setQueuedScholarPrompt({
+      id: Date.now(),
+      text: `What are your thoughts on "${bookTitle}" on your bookshelf?`,
+    });
+    setSceneState((prev) => ({
+      ...prev,
+      cameraPreset: 'office-sofa',
+    }));
+  }, []);
+
   const handleConsumeQueuedPrompt = useCallback((id: number) => {
     setQueuedScholarPrompt((prev) => (prev?.id === id ? null : prev));
+  }, []);
+
+  const handleOpenBookListModal = useCallback(() => {
+    setBookshelfModalOpen(true);
+  }, []);
+
+  const handleFocusHerbariumBookIn3D = useCallback((book: HerbariumBookItem) => {
+    setBookshelfModalOpen(false);
+    setSelectedBookId(null);
+    // Shelf Y heights: [0.22, 0.78, 1.34, 1.90], shelf slot X relative to case center (-4.25)
+    const bookY = 0.22 + book.tierIndex * 0.56 + 0.16;
+    const bookX = -4.25 + book.shelfSlotX;
+    setCustomCameraFocus({
+      cameraPos: { x: bookX + 0.22, y: bookY + 0.08, z: -2.15 },
+      targetPos: { x: bookX, y: bookY, z: -3.52 },
+    });
+  }, []);
+
+  const handleAskScholarAboutHerbariumBook = useCallback((book: HerbariumBookItem) => {
+    setBookshelfModalOpen(false);
+    setQueuedScholarPrompt({
+      id: Date.now(),
+      text: `Professor Linnea, could you provide your scholarly commentary on "${book.title}" by ${book.author} (${book.edition}) from the North Herbarium Case?`,
+    });
+    setScholarChatOpen(true);
+    setScholarChatFullScreen(false);
+    setSceneState((prev) => ({
+      ...prev,
+      cameraPreset: 'office-sofa',
+    }));
   }, []);
 
   const handleAuthenticated = useCallback((user: AuthenticatedUser) => {
@@ -241,6 +291,7 @@ export default function App() {
     setScholarChatFullScreen(false);
     setScholarSpeaking(false);
     setSupportHandoverOpen(false);
+    setBookshelfModalOpen(false);
     setScholarPointerEngaged(false);
     setScholarLabelEngaged(false);
     setSelectedBookId(null);
@@ -264,6 +315,7 @@ export default function App() {
     setScholarChatFullScreen(false);
     setScholarSpeaking(false);
     setSupportHandoverOpen(false);
+    setBookshelfModalOpen(false);
     setScholarPointerEngaged(false);
     setScholarLabelEngaged(false);
     setSelectedBookId(null);
@@ -312,6 +364,8 @@ export default function App() {
         onSelectFeaturedBook={handleSelectFeaturedBook}
         onOpenScholarChat={handleOpenScholarChat}
         onOpenSupportHandover={handleOpenSupportHandover}
+        openChatUI={handleOpenChatForBook}
+        onOpenBookListModal={handleOpenBookListModal}
       />
 
       {/* Smooth CSS-Variable Ambient Sunshine & Nocturnal Starlight Washes */}
@@ -370,6 +424,7 @@ export default function App() {
             onToggleLamps={handleToggleOfficeLamps}
             onOpenScholarChat={handleOpenScholarChat}
             onOpenSupportHandover={handleOpenSupportHandover}
+            onOpenBookListModal={handleOpenBookListModal}
             onReopenWelcome={() => {
               setSidebarOpen(false);
               setScholarChatOpen(false);
@@ -464,6 +519,15 @@ export default function App() {
             onClose={() => setShowWelcomeModal(false)}
             onSelectOfficeView={handleSelectOfficeCamera}
             onOpenSidebar={() => setSidebarOpen(true)}
+          />
+
+          {/* North Herbarium Bookshelf Catalog & Interactive Study Note Modal */}
+          <BookshelfBookListModal
+            open={bookshelfModalOpen && !showWelcomeModal}
+            onClose={() => setBookshelfModalOpen(false)}
+            theme={sceneState.theme}
+            onFocusBookIn3D={handleFocusHerbariumBookIn3D}
+            onAskScholarAboutBook={handleAskScholarAboutHerbariumBook}
           />
         </>
       ) : (

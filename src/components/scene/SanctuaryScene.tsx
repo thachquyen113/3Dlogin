@@ -161,12 +161,16 @@ function LightingAndCameraRig({
   customCameraFocus,
   isAuthenticated,
   isConversing,
+  controls,
+  isGsapCamAnimatingRef,
 }: {
   theme: SceneControlState['theme'];
   cameraPreset: CameraPreset;
   customCameraFocus: CustomCameraFocus | null;
   isAuthenticated: boolean;
   isConversing: boolean;
+  controls: { target: THREE.Vector3; update: () => void };
+  isGsapCamAnimatingRef: React.MutableRefObject<boolean>;
 }) {
   const { camera, pointer, scene } = useThree();
   const keyLightRef = useRef<THREE.DirectionalLight>(null);
@@ -251,6 +255,12 @@ function LightingAndCameraRig({
       rimLightRef.current.intensity = THREE.MathUtils.lerp(0.55, 0.8, nm);
     }
 
+    // If GSAP is actively animating the camera and controls.target, defer to GSAP
+    if (isGsapCamAnimatingRef.current) {
+      currentLookAt.current.copy(controls.target);
+      return;
+    }
+
     // Damped Camera Choreography + Subtle Cursor Parallax + Book / Conversation Framing
     const shouldFrameConversation =
       isAuthenticated &&
@@ -299,6 +309,7 @@ function LightingAndCameraRig({
     const camEase = 1 - Math.exp(-3.6 * dt);
     camera.position.lerp(_targetCamPos, camEase);
     currentLookAt.current.lerp(_targetLookAt, camEase);
+    controls.target.copy(currentLookAt.current);
     camera.lookAt(currentLookAt.current);
   });
 
@@ -336,23 +347,7 @@ function LightingAndCameraRig({
   );
 }
 
-export function SanctuaryScene({
-  state,
-  shelfSortMode,
-  selectedBookId,
-  customCameraFocus,
-  isConversing,
-  isScholarSpeaking,
-  scholarExternalEngaged,
-  scholarLabelDomRef,
-  onScholarPointerChange,
-  onHoverStudyItem,
-  tooltipDomRef,
-  onSelectOfficeView,
-  onSelectFeaturedBook,
-  onOpenScholarChat,
-  onOpenSupportHandover,
-}: {
+interface SanctuarySceneProps {
   state: SceneControlState;
   shelfSortMode: BookShelfSortMode;
   selectedBookId: FeaturedBookId | null;
@@ -368,7 +363,106 @@ export function SanctuaryScene({
   onSelectFeaturedBook: (bookId: FeaturedBookId, focus: CustomCameraFocus) => void;
   onOpenScholarChat: () => void;
   onOpenSupportHandover?: (topic?: string) => void;
-}) {
+  openChatUI?: (bookTitle: string) => void;
+  onOpenBookListModal?: () => void;
+}
+
+function SanctuarySceneContent({
+  state,
+  shelfSortMode,
+  selectedBookId,
+  customCameraFocus,
+  isConversing,
+  isScholarSpeaking,
+  scholarExternalEngaged,
+  scholarLabelDomRef,
+  onScholarPointerChange,
+  onHoverStudyItem,
+  tooltipDomRef,
+  onSelectOfficeView,
+  onSelectFeaturedBook,
+  onOpenScholarChat,
+  onOpenSupportHandover,
+  openChatUI,
+  onOpenBookListModal,
+}: SanctuarySceneProps) {
+  const { camera } = useThree();
+  const isGsapCamAnimatingRef = useRef(false);
+
+  const controls = useMemo(
+    () => ({
+      target: new THREE.Vector3(2.3, 1.56, -3.52),
+      update: () => {
+        camera.lookAt(controls.target);
+      },
+    }),
+    [camera],
+  );
+
+  return (
+    <>
+      <StudioEnvironment />
+      <SoftwareGlPacer />
+      <LightingAndCameraRig
+        theme={state.theme}
+        cameraPreset={state.cameraPreset}
+        customCameraFocus={customCameraFocus}
+        isAuthenticated={state.isAuthenticated}
+        isConversing={isConversing}
+        controls={controls}
+        isGsapCamAnimatingRef={isGsapCamAnimatingRef}
+      />
+      {/* CelestialSky remains active in both outdoor garden & outside the 3D office window */}
+      <CelestialSky
+        theme={state.theme}
+        themeBurstId={state.themeBurstId}
+        lastTriggeredTheme={state.lastTriggeredTheme}
+        skySpeed={state.skySpeed}
+      />
+
+      {state.isAuthenticated ? (
+        <OfficeStudyScene
+          theme={state.theme}
+          lampsOn={state.officeLampsOn}
+          shelfSortMode={shelfSortMode}
+          selectedBookId={selectedBookId}
+          isConversing={isConversing}
+          isScholarSpeaking={isScholarSpeaking}
+          scholarExternalEngaged={scholarExternalEngaged}
+          scholarLabelDomRef={scholarLabelDomRef}
+          onScholarPointerChange={onScholarPointerChange}
+          onHoverStudyItem={onHoverStudyItem}
+          tooltipDomRef={tooltipDomRef}
+          onSelectOfficeView={onSelectOfficeView}
+          onSelectFeaturedBook={onSelectFeaturedBook}
+          onOpenScholarChat={onOpenScholarChat}
+          onOpenSupportHandover={onOpenSupportHandover}
+          openChatUI={openChatUI}
+          onOpenBookListModal={onOpenBookListModal}
+          controls={controls}
+          isGsapCamAnimatingRef={isGsapCamAnimatingRef}
+        />
+      ) : (
+        <>
+          <GardenTerrain
+            theme={state.theme}
+            breezeIntensity={state.breezeIntensity}
+          />
+          <GardenFlora
+            theme={state.theme}
+            breezeIntensity={state.breezeIntensity}
+          />
+          <GardenFauna
+            theme={state.theme}
+            breezeIntensity={state.breezeIntensity}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+export function SanctuaryScene(props: SanctuarySceneProps) {
   const [contextLost, setContextLost] = useState(false);
 
   return (
@@ -410,57 +504,7 @@ export function SanctuaryScene({
             });
           }}
         >
-          <StudioEnvironment />
-          <SoftwareGlPacer />
-          <LightingAndCameraRig
-            theme={state.theme}
-            cameraPreset={state.cameraPreset}
-            customCameraFocus={customCameraFocus}
-            isAuthenticated={state.isAuthenticated}
-            isConversing={isConversing}
-          />
-          {/* CelestialSky remains active in both outdoor garden & outside the 3D office window */}
-          <CelestialSky
-            theme={state.theme}
-            themeBurstId={state.themeBurstId}
-            lastTriggeredTheme={state.lastTriggeredTheme}
-            skySpeed={state.skySpeed}
-          />
-
-          {state.isAuthenticated ? (
-            <OfficeStudyScene
-              theme={state.theme}
-              lampsOn={state.officeLampsOn}
-              shelfSortMode={shelfSortMode}
-              selectedBookId={selectedBookId}
-              isConversing={isConversing}
-              isScholarSpeaking={isScholarSpeaking}
-              scholarExternalEngaged={scholarExternalEngaged}
-              scholarLabelDomRef={scholarLabelDomRef}
-              onScholarPointerChange={onScholarPointerChange}
-              onHoverStudyItem={onHoverStudyItem}
-              tooltipDomRef={tooltipDomRef}
-              onSelectOfficeView={onSelectOfficeView}
-              onSelectFeaturedBook={onSelectFeaturedBook}
-              onOpenScholarChat={onOpenScholarChat}
-              onOpenSupportHandover={onOpenSupportHandover}
-            />
-          ) : (
-            <>
-              <GardenTerrain
-                theme={state.theme}
-                breezeIntensity={state.breezeIntensity}
-              />
-              <GardenFlora
-                theme={state.theme}
-                breezeIntensity={state.breezeIntensity}
-              />
-              <GardenFauna
-                theme={state.theme}
-                breezeIntensity={state.breezeIntensity}
-              />
-            </>
-          )}
+          <SanctuarySceneContent {...props} />
         </Canvas>
       )}
     </div>

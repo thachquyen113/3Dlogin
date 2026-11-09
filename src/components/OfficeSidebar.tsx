@@ -48,6 +48,7 @@ interface OfficeSidebarProps {
   onOpenScholarChat: () => void;
   onOpenSupportHandover: (topic?: string) => void;
   onReopenWelcome: () => void;
+  onOpenBookListModal?: () => void;
   onSignOut: () => void;
 }
 
@@ -101,6 +102,7 @@ export function OfficeSidebar({
   onOpenScholarChat,
   onOpenSupportHandover,
   onReopenWelcome,
+  onOpenBookListModal,
   onSignOut,
 }: OfficeSidebarProps) {
   const sortedBooks = getSortedFeaturedBooks(shelfSortMode);
@@ -332,6 +334,39 @@ export function OfficeSidebar({
                     );
                   })}
                 </div>
+
+                {/* Direct action to browse the full North Herbarium Archive modal */}
+                {onOpenBookListModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenBookListModal();
+                    }}
+                    className="w-full mt-2.5 px-3 py-2.5 rounded-2xl flex items-center gap-3 text-left transition-all duration-200 cursor-pointer border hover:border-emerald-500/50"
+                    style={{
+                      backgroundColor: 'var(--bg-glass-subtle)',
+                      color: 'var(--text-primary)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    <Library className="w-4 h-4 shrink-0 text-emerald-500" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold truncate flex items-center justify-between">
+                        <span>North Herbarium Archive</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-medium">
+                          24 Books
+                        </span>
+                      </div>
+                      <div
+                        className="text-[11px] truncate"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        4 Tiers · Catalog &amp; Study Notes
+                      </div>
+                    </div>
+                  </button>
+                )}
               </div>
 
               {/* Scholar Conversation Action */}

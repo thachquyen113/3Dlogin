@@ -833,4 +833,70 @@ export function getBookCoverTexture(
   return tex;
 }
 
+/**
+ * Procedural Sign Plate Texture for North Herbarium Bookshelf (SRGBColorSpace).
+ */
+let _herbariumSignTex: THREE.CanvasTexture | null = null;
+export function getHerbariumSignTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  if (_herbariumSignTex) return _herbariumSignTex;
+  const w = 512;
+  const h = 144;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    // Rich dark walnut emerald gradient background
+    const grad = ctx.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, '#102e26');
+    grad.addColorStop(0.5, '#194c3d');
+    grad.addColorStop(1, '#102e26');
+    ctx.fillStyle = grad;
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(4, 4, w - 8, h - 8, 20);
+      ctx.fill();
+    } else {
+      ctx.fillRect(4, 4, w - 8, h - 8);
+    }
+
+    // Warm golden border
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 4;
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(6, 6, w - 12, h - 12, 18);
+      ctx.stroke();
+    } else {
+      ctx.strokeRect(6, 6, w - 12, h - 12);
+    }
+
+    // Inner gold pin line
+    ctx.strokeStyle = 'rgba(253, 230, 138, 0.4)';
+    ctx.lineWidth = 1.5;
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(12, 12, w - 24, h - 24, 14);
+      ctx.stroke();
+    }
+
+    // Title: 📖 NORTH HERBARIUM CASE
+    ctx.fillStyle = '#fde68a';
+    ctx.font = 'bold 26px "Playfair Display", Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('📖 NORTH HERBARIUM CASE', w / 2, 48);
+
+    // Subtitle: 24 Volumes · Click to View Book List
+    ctx.fillStyle = '#a7f3d0';
+    ctx.font = '600 20px system-ui, -apple-system, sans-serif';
+    ctx.fillText('24 Volumes · Click to View Book List', w / 2, 96);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAnisotropy;
+  tex.needsUpdate = true;
+  _herbariumSignTex = tex;
+  return tex;
+}
+
+
 
