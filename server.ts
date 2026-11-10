@@ -22,9 +22,30 @@ function getGenAIClient() {
   });
 }
 
+function resolvePort(): number {
+  const portArgIndex = process.argv.indexOf('--port');
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const val = Number(process.argv[portArgIndex + 1]);
+    if (!Number.isNaN(val) && val > 0) return val;
+  }
+  if (process.env.DEFAULT_APP_PORT) {
+    const val = Number(process.env.DEFAULT_APP_PORT);
+    if (!Number.isNaN(val) && val > 0) return val;
+  }
+  if (process.env.APP_PORT) {
+    const val = Number(process.env.APP_PORT);
+    if (!Number.isNaN(val) && val > 0) return val;
+  }
+  if (process.env.PORT && process.env.PORT !== '8080') {
+    const val = Number(process.env.PORT);
+    if (!Number.isNaN(val) && val > 0) return val;
+  }
+  return 3000;
+}
+
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = resolvePort();
 
   app.use(express.json({ limit: '1mb' }));
 

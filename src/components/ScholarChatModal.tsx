@@ -21,6 +21,7 @@ import type {
   ScholarChatMessage,
   ThemeMode,
 } from '../types';
+import { ScholarError3DAlert } from './ScholarError3DAlert';
 
 interface ScholarChatModalProps {
   open: boolean;
@@ -257,6 +258,7 @@ export function ScholarChatModal({
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [lastFailedQuestion, setLastFailedQuestion] = useState<string | null>(null);
   const [internalFullScreen, setInternalFullScreen] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedCategory, setSelectedCategory] =
@@ -348,6 +350,7 @@ export function ScholarChatModal({
     if (!trimmed || isLoading) return;
 
     setErrorMsg(null);
+    setLastFailedQuestion(null);
     const userEntry: ScholarChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -392,6 +395,7 @@ export function ScholarChatModal({
       };
 
       setMessages((prev) => [...prev, scholarEntry]);
+      setLastFailedQuestion(null);
 
       // Animate 3D Old Man speaking & nodding while delivering his answer
       if (speakingTimerRef.current) {
@@ -408,9 +412,32 @@ export function ScholarChatModal({
           ? err.message
           : 'Unable to reach Professor Linnea right now.';
       setErrorMsg(msg);
+      setLastFailedQuestion(trimmed);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRetryFailedQuestion = () => {
+    if (!lastFailedQuestion) return;
+    const q = lastFailedQuestion;
+    setErrorMsg(null);
+    setLastFailedQuestion(null);
+    void sendQuestion(q);
+  };
+
+  const handleEditFailedQuestion = () => {
+    if (lastFailedQuestion) {
+      setQuestion(lastFailedQuestion);
+    }
+    setErrorMsg(null);
+    setLastFailedQuestion(null);
+    inputRef.current?.focus();
+  };
+
+  const handleDismissError = () => {
+    setErrorMsg(null);
+    setLastFailedQuestion(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -427,6 +454,7 @@ export function ScholarChatModal({
 
   const handleResetConversation = () => {
     setErrorMsg(null);
+    setLastFailedQuestion(null);
     setMessages([buildInitialGreeting(user.name, theme)]);
   };
 
@@ -627,18 +655,21 @@ export function ScholarChatModal({
                 </motion.div>
               )}
 
-              {/* Error Notice */}
-              {errorMsg && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  role="alert"
-                  className="chat-error-banner rounded-2xl px-3.5 py-2.5 text-xs flex items-start gap-2"
-                >
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errorMsg}</span>
-                </motion.div>
-              )}
+              {/* 3D Animation Alert when Scholar cannot reply to user, with Retry button & HandOver */}
+              <AnimatePresence>
+                {errorMsg && (
+                  <ScholarError3DAlert
+                    error={errorMsg}
+                    failedQuestion={lastFailedQuestion}
+                    onRetry={handleRetryFailedQuestion}
+                    onEdit={handleEditFailedQuestion}
+                    onDismiss={handleDismissError}
+                    onOpenSupportHandover={onOpenSupportHandover}
+                    isFullScreen={fullScreen}
+                    theme={theme}
+                  />
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
