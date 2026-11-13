@@ -49,11 +49,29 @@ export interface HoveredStudyItem {
   initialY: number;
 }
 
+export type AttachmentKind = 'book' | 'article';
+
+export interface AttachedAttachmentRef {
+  id: string;
+  kind: AttachmentKind;
+  title: string;
+  shortLabel?: string;
+  author: string;
+  category: string;
+  source: 'featured' | 'herbarium' | 'journal';
+  color: string;
+  coverUrl?: string;
+  summary: string;
+  metaLabel: string;
+  readTime?: string;
+}
+
 export interface ScholarChatMessage {
   id: string;
   role: 'user' | 'scholar';
   text: string;
   timestamp: string;
+  attachedItem?: AttachedAttachmentRef;
 }
 
 export interface SupportRepresentative {

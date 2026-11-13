@@ -73,6 +73,7 @@ export default function App() {
   const [queuedScholarPrompt, setQueuedScholarPrompt] = useState<{
     id: number;
     text: string;
+    breadcrumb?: string[];
   } | null>(null);
   const [hoveredStudyItem, setHoveredStudyItem] =
     useState<HoveredStudyItem | null>(null);
@@ -226,6 +227,7 @@ export default function App() {
     setQueuedScholarPrompt({
       id: Date.now(),
       text: `What are your thoughts on "${book.title}" on your bookshelf?`,
+      breadcrumb: ['Library', 'Featured Books', book.shortLabel],
     });
     setSceneState((prev) => ({
       ...prev,
@@ -240,9 +242,17 @@ export default function App() {
     setSelectedBookId(null);
     setCustomCameraFocus(null);
     setScholarChatOpen(true);
+    const matchedFeatured = getSortedFeaturedBooks('curated').find(
+      (b) => b.title === bookTitle,
+    );
     setQueuedScholarPrompt({
       id: Date.now(),
       text: `What are your thoughts on "${bookTitle}" on your bookshelf?`,
+      breadcrumb: [
+        'Library',
+        'Featured Books',
+        matchedFeatured ? matchedFeatured.shortLabel : bookTitle,
+      ],
     });
     setSceneState((prev) => ({
       ...prev,
@@ -275,6 +285,7 @@ export default function App() {
     setQueuedScholarPrompt({
       id: Date.now(),
       text: `Professor Linnea, could you provide your scholarly commentary on "${book.title}" by ${book.author} (${book.edition}) from the North Herbarium Case?`,
+      breadcrumb: ['Library', 'Botanical Studies', book.category],
     });
     setScholarChatOpen(true);
     setScholarChatFullScreen(false);

@@ -52,7 +52,7 @@ async function startServer() {
   app.post('/api/scholar-chat', async (req, res) => {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const { message, history, theme, userName } = body;
+      const { message, history, theme, userName, attachedItem, attachedBook } = body;
 
       const trimmedQuestion = typeof message === 'string' ? message.trim() : '';
       if (!trimmedQuestion) {
@@ -80,6 +80,18 @@ async function startServer() {
         'Respond in first person with calm warmth, gentle wit, and vivid sensory detail. If asked in Japanese or about the Japanese books, respond naturally in the language the visitor uses (or weave warm bilingual insight). Keep answers concise (2 to 4 sentences) so the conversation feels natural and intimate.',
       ].join(' ');
 
+      const rawAttachment = attachedItem || attachedBook;
+      const attachmentKindLabel =
+        rawAttachment && rawAttachment.kind === 'article'
+          ? 'Attached Article Context'
+          : 'Attached Volume Context';
+      const attachedContext =
+        rawAttachment &&
+        typeof rawAttachment === 'object' &&
+        typeof rawAttachment.title === 'string'
+          ? `[${attachmentKindLabel} — Title: "${rawAttachment.title}", Author: ${String(rawAttachment.author || 'Unknown')}, Category: ${String(rawAttachment.category || 'Library Reference')}${rawAttachment.summary ? `, Summary: ${String(rawAttachment.summary)}` : ''}]\n\n`
+          : '';
+
       const recentTurns = Array.isArray(history) ? history.slice(-8) : [];
       const contents = [
         ...recentTurns.map((entry) => ({
@@ -88,7 +100,7 @@ async function startServer() {
         })),
         {
           role: 'user',
-          parts: [{ text: trimmedQuestion }],
+          parts: [{ text: `${attachedContext}${trimmedQuestion}` }],
         },
       ];
 

@@ -330,7 +330,8 @@
   color: var(--text-muted);
 }
 
-.glass-input:focus {
+.glass-input:focus,
+.glass-input:focus-within {
   outline: none;
   background-color: var(--bg-input-focus);
   border-color: var(--border-focus);
